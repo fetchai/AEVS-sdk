@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import threading
 from collections import deque
 from typing import Any
@@ -131,11 +132,31 @@ def enable(*, frameworks: list[str] | None = None) -> None:
 
         try:
             new_client = AEVSClient(config)
-            new_buffer = LocalBuffer(
-                config.buffer_path,
-                config.key_secret,
-                max_records=config.max_buffer_records,
-            )
+            try:
+                new_buffer = LocalBuffer(
+                    config.buffer_path,
+                    config.key_secret,
+                    max_records=config.max_buffer_records,
+                )
+            except sqlite3.DatabaseError:
+                # Buffer file exists but is unreadable as a SQLite DB
+                # (corruption, partial write, foreign file at that path,
+                # encryption-key mismatch surfacing here, etc.).  Recover
+                # by purging and recreating once — never crash the host.
+                logger.warning(
+                    "AEVS: buffer file unreadable as SQLite DB at %s; "
+                    "purging and starting fresh",
+                    config.buffer_path,
+                )
+                try:
+                    os.remove(config.buffer_path.expanduser().resolve())
+                except FileNotFoundError:
+                    pass
+                new_buffer = LocalBuffer(
+                    config.buffer_path,
+                    config.key_secret,
+                    max_records=config.max_buffer_records,
+                )
         except Exception:
             if new_client is not None:
                 try:
