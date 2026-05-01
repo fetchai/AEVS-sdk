@@ -89,8 +89,9 @@ class LocalBuffer:
         # their normal "no session info available" path.
         try:
             self._conn.execute("ALTER TABLE chain_state ADD COLUMN session_id TEXT")
+            logger.debug("AEVS: migrated chain_state table — added session_id column")
         except sqlite3.OperationalError:
-            pass
+            logger.debug("AEVS: chain_state.session_id column already exists, migration skipped")
         self._conn.commit()
 
     # ------------------------------------------------------------------

@@ -83,7 +83,7 @@ def _after_fork_child() -> None:
 try:
     os.register_at_fork(after_in_child=_after_fork_child)
 except AttributeError:
-    pass  # Windows
+    logger.debug("AEVS: os.register_at_fork unavailable (Windows); fork safety disabled")
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +115,7 @@ def _warn_dual_mcp_langchain(adapters: list[Any]) -> None:
             "ignore this warning; otherwise enable only one adapter."
         )
     except ImportError:
-        pass
+        logger.debug("AEVS: langchain-mcp-adapters not installed, no bridge overlap possible")
 
 
 def enable(*, frameworks: list[str] | None = None) -> None:
@@ -154,10 +154,14 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     "purging and starting fresh",
                     config.buffer_path,
                 )
-                try:
-                    os.remove(config.buffer_path.expanduser().resolve())
-                except FileNotFoundError:
-                    pass
+                resolved = config.buffer_path.expanduser().resolve()
+                for suffix in ("", "-wal", "-shm"):
+                    path = str(resolved) + suffix
+                    try:
+                        os.remove(path)
+                        logger.debug("AEVS: removed corrupt buffer file %s", path)
+                    except FileNotFoundError:
+                        logger.debug("AEVS: buffer file %s not present, skipping", path)
                 new_buffer = LocalBuffer(
                     config.buffer_path,
                     config.key_secret,
@@ -168,7 +172,7 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                 try:
                     new_client.close()
                 except Exception:
-                    pass
+                    logger.debug("AEVS: error closing client during buffer init rollback", exc_info=True)
             raise
 
         # Session lifecycle gate — decides between three states based on
@@ -270,10 +274,14 @@ def enable(*, frameworks: list[str] | None = None) -> None:
             last_prev_hash = None
             session_id = str(uuid.uuid4())
             new_buffer.close()
-            try:
-                os.remove(config.buffer_path.expanduser().resolve())
-            except FileNotFoundError:
-                pass
+            resolved = config.buffer_path.expanduser().resolve()
+            for suffix in ("", "-wal", "-shm"):
+                path = str(resolved) + suffix
+                try:
+                    os.remove(path)
+                    logger.debug("AEVS: removed stale buffer file %s", path)
+                except FileNotFoundError:
+                    logger.debug("AEVS: buffer file %s not present, skipping", path)
             new_buffer = LocalBuffer(
                 config.buffer_path,
                 config.key_secret,
