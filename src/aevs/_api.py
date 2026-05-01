@@ -10,6 +10,7 @@ import logging
 import os
 import sqlite3
 import threading
+import uuid
 from collections import deque
 from typing import Any
 
@@ -28,6 +29,10 @@ _buffer: Any = None
 _drainer: Any = None
 _adapters: list[Any] = []
 _enabled: bool = False
+
+# Active session UUIDv4 — set in ``enable()`` and cleared in ``disable()``.
+# Surfaced by :func:`aevs.get_session_id` for log correlation.
+_session_id: str | None = None
 
 _state_lock = threading.Lock()
 
@@ -60,13 +65,14 @@ _ADAPTER_REGISTRY: dict[str, tuple[str, str]] = {
 # ---------------------------------------------------------------------------
 def _after_fork_child() -> None:
     global _receipt_builder, _client, _buffer, _drainer, _enabled, _state_lock, _registry_lock
-    global _consecutive_store_failures
+    global _consecutive_store_failures, _session_id
     _receipt_builder = None
     _client = None
     _buffer = None
     _drainer = None
     _adapters.clear()
     _enabled = False
+    _session_id = None
     _consecutive_store_failures = 0
     _state_lock = threading.Lock()
     _registry_lock = threading.Lock()
@@ -114,7 +120,7 @@ def _warn_dual_mcp_langchain(adapters: list[Any]) -> None:
 
 def enable(*, frameworks: list[str] | None = None) -> None:
     """Detect installed frameworks, patch them, and start intercepting tool calls."""
-    global _receipt_builder, _client, _buffer, _drainer, _enabled
+    global _receipt_builder, _client, _buffer, _drainer, _enabled, _session_id
 
     with _state_lock:
         if _enabled:
@@ -165,32 +171,109 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     pass
             raise
 
-        # Resume seq and hash chain from any pending receipts left by a prior session.
-        # If the buffer is unreadable (e.g. key changed), start fresh — never crash.
+        # Session lifecycle gate — decides between three states based on
+        # the buffer's persisted state and the count of un-flushed
+        # (pending) receipts:
+        #
+        # 1. ``pending_count > 0`` *and* the persisted ``chain_state``
+        #    carries a ``session_id``: we are recovering from a
+        #    mid-session crash where receipts never reached the backend.
+        #    Reuse the same ``session_id`` so the new receipts continue
+        #    the chain the pending ones started; resume ``seq`` and
+        #    ``prev_hash`` from ``chain_state``.  This keeps one linear
+        #    chain across the crash boundary so the drainer ships a
+        #    single, verifiable chain.
+        #
+        # 2. ``pending_count > 0`` but no persisted ``session_id`` (legacy
+        #    buffer file written by an SDK that predates this column):
+        #    we have unsent receipts whose session is unknown.  Mint a
+        #    fresh ``session_id`` for new receipts but keep ``seq``/
+        #    ``prev_hash`` continuity so the drainer can ship the legacy
+        #    pending receipts and the new ones as a single hash-linked
+        #    chain (different sessions, same hash linkage — backend
+        #    accepts both because session_id is nullable).
+        #
+        # 3. ``pending_count == 0`` (fresh DB or clean drain): mint a
+        #    fresh ``session_id`` and reset ``seq=0, prev_hash=None`` so
+        #    the next receipt computes a brand-new session-scoped anchor.
+        #    Two consecutive ``enable()`` cycles on the same buffer
+        #    therefore occupy distinct chain spaces, eliminating the
+        #    fork concept entirely (production audit issue #18 — solved
+        #    by isolation rather than by stitching).
+        #
+        # If the buffer is unreadable for any reason (key rotation,
+        # disk corruption, etc.) we purge and recreate — the SDK never
+        # crashes the host agent.
         start_seq = 0
         last_prev_hash: str | None = None
+        session_id: str = str(uuid.uuid4())
         try:
-            start_seq = new_buffer.max_seq()
-            if start_seq > 0:
-                last_bytes = new_buffer.last_receipt_bytes()
-                if last_bytes is not None:
-                    from aevs.crypto.chain import compute_receipt_hash
+            persisted = new_buffer.chain_state()
+            pending = new_buffer.pending_count()
+            if pending > 0 and persisted is not None:
+                persisted_seq, persisted_hash, persisted_session = persisted
+                start_seq = persisted_seq
+                last_prev_hash = persisted_hash
+                if persisted_session is not None:
+                    session_id = persisted_session
+                    logger.info(
+                        "AEVS: mid-session crash recovery — resuming "
+                        "session_id=%s at seq=%d",
+                        session_id,
+                        start_seq,
+                    )
+                else:
+                    logger.info(
+                        "AEVS: legacy pending receipts present (no session_id) "
+                        "— minting new session %s, hash chain stays linear "
+                        "across the boundary",
+                        session_id,
+                    )
+            elif pending > 0 and persisted is None:
+                # Two distinct scenarios collapse onto this branch:
+                #   1. legacy buffer file written by an SDK that predates
+                #      the ``chain_state`` table (no row at all)
+                #   2. buffer file written by a different API key — the
+                #      key-fingerprint guard inside ``chain_state()``
+                #      surfaces this as ``None``
+                # Disambiguate by probing one decrypt: if it fails the
+                # buffer is unreadable and we let the outer ``except``
+                # purge it.
+                new_buffer.last_receipt_bytes()
+                from aevs.crypto.chain import compute_receipt_hash
 
-                    last_prev_hash = compute_receipt_hash(last_bytes)
+                start_seq = new_buffer.max_seq()
+                if start_seq > 0:
+                    last_bytes = new_buffer.last_receipt_bytes()
+                    if last_bytes is not None:
+                        last_prev_hash = compute_receipt_hash(last_bytes)
                 logger.info(
-                    "AEVS: resuming from buffer (last seq=%d)", start_seq
+                    "AEVS: legacy pending receipts present (no chain_state) "
+                    "— minting new session %s, resuming seq=%d so the drainer "
+                    "ships one hash-linked chain across the version boundary",
+                    session_id,
+                    start_seq,
+                )
+            elif pending == 0 and persisted is not None:
+                # Clean drain — explicit log, but no resume.
+                logger.info(
+                    "AEVS: clean drain detected — minting new session %s, "
+                    "starting fresh chain",
+                    session_id,
                 )
         except Exception:
             logger.warning(
-                "AEVS: could not read buffer state (key changed?), purging and starting fresh",
+                "AEVS: could not read buffer state (key changed?), "
+                "purging and starting fresh",
             )
             start_seq = 0
             last_prev_hash = None
+            session_id = str(uuid.uuid4())
             new_buffer.close()
             try:
                 os.remove(config.buffer_path.expanduser().resolve())
             except FileNotFoundError:
-                pass  # already gone — that's fine
+                pass
             new_buffer = LocalBuffer(
                 config.buffer_path,
                 config.key_secret,
@@ -198,7 +281,10 @@ def enable(*, frameworks: list[str] | None = None) -> None:
             )
 
         new_builder = ReceiptBuilder(
-            config, start_seq=start_seq, prev_hash=last_prev_hash
+            config,
+            session_id=session_id,
+            start_seq=start_seq,
+            prev_hash=last_prev_hash,
         )
 
         frameworks_to_try = (
@@ -269,6 +355,7 @@ def enable(*, frameworks: list[str] | None = None) -> None:
         _client = new_client
         _buffer = new_buffer
         _drainer = new_drainer
+        _session_id = session_id
         _adapters.extend(new_adapters)
         _enabled = True
         new_drainer.start()
@@ -280,7 +367,7 @@ def disable() -> None:
     Stops the background drainer (performing a final synchronous flush),
     then closes the client and buffer.
     """
-    global _receipt_builder, _client, _buffer, _drainer, _enabled
+    global _receipt_builder, _client, _buffer, _drainer, _enabled, _session_id
     global _consecutive_store_failures
 
     with _state_lock:
@@ -311,6 +398,7 @@ def disable() -> None:
         _client = None
         _buffer = None
         _drainer = None
+        _session_id = None
         _enabled = False
         _consecutive_store_failures = 0
         with _registry_lock:
@@ -328,6 +416,22 @@ def flush() -> None:
         return
 
     drainer.drain()
+
+
+def get_session_id() -> str | None:
+    """Return the active session UUID, or ``None`` when AEVS is disabled.
+
+    Each ``aevs.enable()`` call mints a UUIDv4 (or recovers a persisted
+    one when there are unsent buffered receipts).  Every receipt produced
+    during that session carries this id, and the chain anchor for the
+    session is derived from it — making the chain cryptographically
+    isolated from any other session that shares the same API key.
+
+    Useful for log correlation ("which session crashed at 14:32?") and
+    for support tooling that needs to look up a particular session's
+    receipts on the backend without coordinating with the application.
+    """
+    return _session_id
 
 
 def is_healthy(*, threshold: int = 3) -> bool:
@@ -407,7 +511,7 @@ def _handle_tool_call(**kwargs: Any) -> None:
         with _state_lock:
             if not _enabled or _buffer is not buffer or _receipt_builder is not builder:
                 return
-            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"])
+            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"], session_id=receipt.get("session_id"))
         _consecutive_store_failures = 0
     except Exception:
         _consecutive_store_failures += 1
@@ -454,7 +558,7 @@ async def _handle_tool_call_async(**kwargs: Any) -> None:
         with _state_lock:
             if not _enabled or _buffer is not buffer or _receipt_builder is not builder:
                 return
-            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"])
+            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"], session_id=receipt.get("session_id"))
         _consecutive_store_failures = 0
     except Exception:
         _consecutive_store_failures += 1

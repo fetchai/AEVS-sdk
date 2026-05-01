@@ -46,9 +46,12 @@ FIXED_START = datetime(2026, 3, 30, 10, 0, 0, tzinfo=timezone.utc)
 FIXED_END = datetime(2026, 3, 30, 10, 0, 0, 500000, tzinfo=timezone.utc)
 
 
-def _make_builder(**kwargs) -> ReceiptBuilder:
+_TEST_SESSION_ID = "00000000-0000-4000-8000-000000000002"
+
+
+def _make_builder(*, session_id: str = _TEST_SESSION_ID, **kwargs) -> ReceiptBuilder:
     configure(api_key=TEST_API_KEY, **kwargs)
-    return ReceiptBuilder(get_config())
+    return ReceiptBuilder(get_config(), session_id=session_id)
 
 
 def _build_receipt(builder: ReceiptBuilder, **overrides) -> dict:
@@ -162,7 +165,7 @@ class TestHashChainIntegrity:
         r2 = _build_receipt(builder)
         r3 = _build_receipt(builder)
 
-        assert r1["prev_hash"] == compute_chain_anchor(cfg.key_secret)
+        assert r1["prev_hash"] == compute_chain_anchor(cfg.key_secret, _TEST_SESSION_ID)
 
         r1_bytes = canonical_json(
             r1, float_handling=cfg.float_handling, float_precision=cfg.float_precision
@@ -193,11 +196,11 @@ class TestHashChainIntegrity:
         r2 = _build_receipt(builder)
         # If backend receives r2 first, its prev_hash won't match the anchor
         cfg = get_config()
-        assert r2["prev_hash"] != compute_chain_anchor(cfg.key_secret)
+        assert r2["prev_hash"] != compute_chain_anchor(cfg.key_secret, _TEST_SESSION_ID)
 
     def test_cannot_forge_anchor_without_key(self):
-        real = compute_chain_anchor(TEST_KEY_SECRET)
-        fake = compute_chain_anchor(b"\xff" * 32)
+        real = compute_chain_anchor(TEST_KEY_SECRET, _TEST_SESSION_ID)
+        fake = compute_chain_anchor(b"\xff" * 32, _TEST_SESSION_ID)
         assert real != fake
 
     def test_chain_deterministic_across_builders(self):

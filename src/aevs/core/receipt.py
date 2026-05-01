@@ -25,10 +25,12 @@ class ReceiptBuilder:
         self,
         config: AEVSConfig,
         *,
+        session_id: str,
         start_seq: int = 0,
         prev_hash: str | None = None,
     ) -> None:
         self._config = config
+        self._session_id = session_id
         self._seq = start_seq
         self._prev_hash: str | None = prev_hash
         self._lock = threading.Lock()
@@ -72,7 +74,7 @@ class ReceiptBuilder:
             seq = self._seq
 
             if self._prev_hash is None:
-                prev_hash = compute_chain_anchor(cfg.key_secret)
+                prev_hash = compute_chain_anchor(cfg.key_secret, self._session_id)
             else:
                 prev_hash = self._prev_hash
 
@@ -81,6 +83,7 @@ class ReceiptBuilder:
 
             receipt: dict[str, Any] = {
                 "reference_id": reference_id,
+                "session_id": self._session_id,
                 "agent_id": cfg.agent_id,
                 "seq": seq,
                 "prev_hash": prev_hash,
@@ -120,3 +123,7 @@ class ReceiptBuilder:
     @property
     def seq(self) -> int:
         return self._seq
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id

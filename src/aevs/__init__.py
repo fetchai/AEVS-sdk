@@ -11,6 +11,7 @@ __all__ = [
     "get_reference_id",
     "get_reference_ids",
     "clear_reference_ids",
+    "get_session_id",
 ]
 
 
@@ -69,3 +70,16 @@ def clear_reference_ids() -> None:
     from aevs._api import clear_reference_ids as _clear
 
     _clear()
+
+
+def get_session_id() -> str | None:
+    """Return the active AEVS session UUID, or ``None`` when disabled.
+
+    A new UUIDv4 is minted on each ``enable()`` (or recovered from the
+    buffer on mid-session crash recovery).  Useful for log correlation —
+    every receipt in the session carries this id and the chain anchor
+    is derived from it.
+    """
+    from aevs._api import get_session_id as _get
+
+    return _get()

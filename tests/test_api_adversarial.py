@@ -7,6 +7,7 @@ tool-call handlers, and the bounded reference registry.
 
 from __future__ import annotations
 
+import json
 import os
 from collections import deque
 from datetime import datetime, timezone
@@ -351,6 +352,231 @@ class TestEnableFailurePaths:
 
 
 # ===================================================================
+# Chain resume after a clean drain — production audit issue #18
+# ===================================================================
+
+
+class TestChainResumeAfterDrain:
+    """After ``enable() → tool call → flush() → disable()`` fully drains
+    the buffer, the next ``enable()`` mints a *new* ``session_id`` and
+    starts its own chain space.
+
+    The fork failure mode from production audit issue #18 is now
+    impossible by construction: cycle 1 and cycle 2 receipts have
+    different ``session_id`` values and different (session-scoped)
+    anchors, so they can never collide on ``(seq, prev_hash)`` for the
+    same ``(key_id, agent_id)``.
+    """
+
+    @staticmethod
+    def _trigger_one_call() -> None:
+        api._handle_tool_call(
+            tool_name="ping",
+            inputs={},
+            output="pong",
+            status="success",
+            error=None,
+            started_at=FIXED_START,
+            ended_at=FIXED_END,
+            framework="test",
+            framework_version="0",
+        )
+
+    @respx.mock
+    def test_post_drain_enable_starts_isolated_session(self, tmp_path):
+        from aevs.core.buffer import LocalBuffer
+        from aevs.crypto.chain import compute_chain_anchor
+
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+        configure(
+            api_key=TEST_API_KEY,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+
+        # ---- Cycle 1: enable, tool call, flush, disable -----------------
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+        finally:
+            api.disable()
+
+        # The buffer drained cleanly; chain_state row carries the
+        # cycle-1 fingerprint and session_id.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 0
+            persisted = buf.chain_state()
+            assert persisted is not None
+            persisted_seq, _persisted_hash, persisted_session = persisted
+            assert persisted_seq == 1
+            assert persisted_session is not None, (
+                "PR #3+#4 must persist session_id alongside seq/hash"
+            )
+        finally:
+            buf.close()
+
+        # ---- Cycle 2: enable, tool call, flush, disable -----------------
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+
+            calls = list(respx.calls)
+            assert len(calls) == 2, (
+                f"expected one POST per cycle; got {len(calls)}"
+            )
+            r1 = json.loads(calls[0].request.content)
+            r2 = json.loads(calls[1].request.content)
+
+            # Each cycle has its own session_id and its own anchor.
+            assert r1["session_id"] != r2["session_id"], (
+                "post-drain enable() must mint a distinct session_id; "
+                "got identical session_ids on cycles that share no chain"
+            )
+            anchor_r1 = compute_chain_anchor(TEST_KEY_SECRET, r1["session_id"])
+            anchor_r2 = compute_chain_anchor(TEST_KEY_SECRET, r2["session_id"])
+            assert anchor_r1 != anchor_r2
+
+            assert r1["seq"] == 1
+            assert r1["prev_hash"] == anchor_r1
+            assert r2["seq"] == 1, (
+                f"post-drain enable() must start a fresh chain at seq=1; "
+                f"got seq={r2['seq']} — sessions are not isolated"
+            )
+            assert r2["prev_hash"] == anchor_r2, (
+                "cycle 2 prev_hash must equal anchor(key, session_2); "
+                "sessions must be cryptographically isolated"
+            )
+        finally:
+            api.disable()
+
+    @respx.mock
+    def test_mid_session_crash_recovery_reuses_session_id(self, tmp_path):
+        """If ``enable()`` finds pending receipts in the buffer (i.e. the
+        prior session crashed before flush), it must reuse the persisted
+        ``session_id`` so the new receipts continue the same chain."""
+        from aevs.core.buffer import LocalBuffer
+
+        # Simulate a crash by NOT mocking POST and NOT calling flush —
+        # the disable() final-flush will fail to send and pending
+        # receipts remain in the buffer.
+        respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("down"))
+        configure(
+            api_key=TEST_API_KEY,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            self._trigger_one_call()
+        finally:
+            api.disable()
+
+        # Inspect the buffer pre-recovery.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 2
+            persisted = buf.chain_state()
+            assert persisted is not None
+            _seq, _hash, persisted_session = persisted
+            assert persisted_session is not None
+        finally:
+            buf.close()
+
+        # Recovery: now the backend is reachable, capture every POST.
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+
+            calls = [json.loads(c.request.content) for c in respx.calls]
+            successful = [
+                json.loads(c.request.content)
+                for c in respx.calls
+                if c.has_response and c.response.status_code == 200
+            ]
+            assert len(successful) == 3, (
+                f"expected 3 successful POSTs (2 pre-crash + 1 post); "
+                f"got {len(successful)} (total respx calls={len(calls)})"
+            )
+
+            # All three receipts share one session_id and seq is monotonic
+            # across the crash boundary — that's mid-session recovery.
+            session_ids = {r["session_id"] for r in successful}
+            assert len(session_ids) == 1, (
+                f"mid-session recovery must keep one session_id across the "
+                f"crash; got {session_ids}"
+            )
+            seqs = sorted(r["seq"] for r in successful)
+            assert seqs == [1, 2, 3], (
+                f"sequence must continue across the crash; got {seqs}"
+            )
+        finally:
+            api.disable()
+
+    @respx.mock
+    def test_post_drain_resume_survives_rotated_key_by_starting_fresh(
+        self, tmp_path
+    ):
+        """Defensive: if the same buffer file is reused with a different
+        key after a clean drain, ``chain_state()`` reports ``None`` and
+        we restart at ``seq=1, prev_hash = anchor(new_key)`` instead of
+        bridging the new chain onto the old key's last_hash."""
+        from aevs.core.buffer import LocalBuffer
+        from aevs.crypto.chain import compute_chain_anchor
+
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+        configure(
+            api_key=TEST_API_KEY,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+        finally:
+            api.disable()
+
+        # Rotate to a different key on the same buffer file.
+        rotated_key = "aevs_sk_rotated_" + "cd" * 32
+        rotated_secret = bytes.fromhex("cd" * 32)
+        configure(
+            api_key=rotated_key,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+
+        # The buffer's own chain_state under the new key reports None,
+        # which is what enable() relies on to fall through cleanly.
+        buf = LocalBuffer(tmp_path / "buf.db", rotated_secret)
+        try:
+            assert buf.chain_state() is None
+        finally:
+            buf.close()
+
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+
+            calls = list(respx.calls)
+            r2 = json.loads(calls[-1].request.content)
+            assert r2["seq"] == 1
+            assert r2["prev_hash"] == compute_chain_anchor(rotated_secret, r2["session_id"]), (
+                "rotated key must start its own chain at its own anchor"
+            )
+        finally:
+            api.disable()
+
+
+# ===================================================================
 # disable() error handling
 # ===================================================================
 
@@ -490,7 +716,7 @@ class TestHandleToolCallSync:
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder
 
-        builder = ReceiptBuilder(get_config())
+        builder = ReceiptBuilder(get_config(), session_id="00000000-0000-4000-8000-000000000004")
         buf = LocalBuffer(tmp_path / "ref.db", TEST_KEY_SECRET)
 
         api._enabled = True
@@ -572,7 +798,7 @@ class TestHandleToolCallAsync:
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder
 
-        builder = ReceiptBuilder(get_config())
+        builder = ReceiptBuilder(get_config(), session_id="00000000-0000-4000-8000-000000000004")
         buf = LocalBuffer(tmp_path / "async_ref.db", TEST_KEY_SECRET)
 
         api._enabled = True
