@@ -313,6 +313,42 @@ class TestEnableFailurePaths:
                 api.enable(frameworks=[])
         assert api._enabled is False
 
+    @respx.mock
+    def test_corrupt_buffer_file_recovers_on_construction(self, tmp_path):
+        """If the buffer file at ``buffer_path`` is not a valid SQLite DB
+        (e.g. corrupted on disk, partial write, or arbitrary bytes),
+        ``LocalBuffer.__init__`` raises ``sqlite3.DatabaseError`` *before*
+        the post-construction recovery path can fire.  ``enable()`` must
+        catch this, purge the file, and recreate the buffer rather than
+        propagating the error and crashing the host agent.
+
+        Regression: prior to this fix, junk bytes at ``buffer_path``
+        caused ``enable()`` to raise ``sqlite3.DatabaseError: file is not
+        a database``, violating design rule #1 (never crash the agent).
+        """
+        from aevs.core.buffer import LocalBuffer
+
+        buffer_path = tmp_path / "buf.db"
+        buffer_path.write_bytes(b"not-a-sqlite-database-just-junk-bytes" * 100)
+
+        configure(
+            api_key=TEST_API_KEY,
+            buffer_path=str(buffer_path),
+            base_url=TEST_BASE_URL,
+        )
+
+        respx.post(TEST_RECEIPTS_URL).mock(
+            return_value=httpx.Response(200))
+        api.enable(frameworks=[])
+
+        try:
+            assert api._enabled is True
+            assert api._buffer is not None
+            assert isinstance(api._buffer, LocalBuffer)
+            assert api._buffer.max_seq() == 0
+        finally:
+            api.disable()
+
 
 # ===================================================================
 # disable() error handling
