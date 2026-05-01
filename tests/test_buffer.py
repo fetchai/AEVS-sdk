@@ -212,3 +212,243 @@ class TestBufferLastReceipt:
         assert last["seq"] == 2
         assert last["tool_name"] == "last_tool"
         buf2.close()
+
+
+class TestBufferChainState:
+    """Persistent chain_state survives prune_flushed() so enable() can
+    resume the tamper-evident chain after a clean drain (audit issue #18)."""
+
+    def test_chain_state_empty_when_never_stored(self, buffer: LocalBuffer):
+        assert buffer.chain_state() is None
+
+    def test_chain_state_returns_seq_and_hash_after_store(
+        self, buffer: LocalBuffer
+    ):
+        from aevs.crypto.chain import compute_receipt_hash
+
+        payload = _to_bytes(_make_receipt(1))
+        buffer.store(1, payload, prev_hash="h")
+
+        state = buffer.chain_state()
+        assert state is not None
+        seq, last_hash, session_id = state
+        assert seq == 1
+        assert last_hash == compute_receipt_hash(payload)
+        # No session_id was supplied to store(), so the chain_state row
+        # carries None — callers treat that as "legacy / unknown session".
+        assert session_id is None
+
+    def test_chain_state_advances_with_each_store(self, buffer: LocalBuffer):
+        from aevs.crypto.chain import compute_receipt_hash
+
+        for i in (1, 2, 3):
+            payload = _to_bytes(_make_receipt(i))
+            buffer.store(i, payload, prev_hash="h")
+
+        state = buffer.chain_state()
+        assert state is not None
+        last_seq, last_hash, _ = state
+        assert last_seq == 3
+        # Matches the hash of the most-recently-stored receipt's bytes.
+        assert last_hash == compute_receipt_hash(_to_bytes(_make_receipt(3)))
+
+    def test_chain_state_survives_prune_flushed(self, tmp_path: Path):
+        """Core regression for issue #18: after a full drain the chain
+        fingerprint must still be readable so the next session resumes
+        rather than restarting at seq=1."""
+        from aevs.crypto.chain import compute_receipt_hash
+
+        db_path = tmp_path / "drain.db"
+        buf = LocalBuffer(db_path, TEST_KEY_SECRET)
+        for i in (1, 2):
+            buf.store(i, _to_bytes(_make_receipt(i)), prev_hash="h")
+        buf.mark_flushed([1, 2])
+        deleted = buf.prune_flushed()
+        assert deleted == 2
+        assert buf.pending_count() == 0
+        assert buf.max_seq() == 0  # receipts table really is empty
+
+        state = buf.chain_state()
+        assert state is not None
+        last_seq, last_hash, _ = state
+        assert last_seq == 2
+        assert last_hash == compute_receipt_hash(_to_bytes(_make_receipt(2)))
+        buf.close()
+
+    def test_chain_state_survives_reopen_after_drain(self, tmp_path: Path):
+        from aevs.crypto.chain import compute_receipt_hash
+
+        db_path = tmp_path / "reopen.db"
+        buf = LocalBuffer(db_path, TEST_KEY_SECRET)
+        buf.store(1, _to_bytes(_make_receipt(1)), prev_hash="h")
+        buf.store(2, _to_bytes(_make_receipt(2)), prev_hash="h")
+        buf.mark_flushed([1, 2])
+        buf.prune_flushed()
+        buf.close()
+
+        buf2 = LocalBuffer(db_path, TEST_KEY_SECRET)
+        state = buf2.chain_state()
+        assert state is not None
+        last_seq, last_hash, _ = state
+        assert last_seq == 2
+        assert last_hash == compute_receipt_hash(_to_bytes(_make_receipt(2)))
+        buf2.close()
+
+    def test_chain_state_returns_none_on_key_mismatch(self, tmp_path: Path):
+        """A buffer file that was written by a different key must surface
+        as ``chain_state() is None`` so callers do not bridge two
+        unrelated chains across a key rotation."""
+        db_path = tmp_path / "rotated.db"
+        buf_a = LocalBuffer(db_path, b"key_a___" * 4)
+        buf_a.store(1, _to_bytes(_make_receipt(1)), prev_hash="h")
+        buf_a.close()
+
+        buf_b = LocalBuffer(db_path, b"key_b___" * 4)
+        assert buf_b.chain_state() is None
+        buf_b.close()
+
+    def test_chain_state_does_not_advance_backwards(self, buffer: LocalBuffer):
+        """Defensive: a pathological out-of-order store at a lower seq
+        must not rewind the persisted chain fingerprint."""
+        from aevs.crypto.chain import compute_receipt_hash
+
+        buffer.store(5, _to_bytes(_make_receipt(5)), prev_hash="h")
+        forward_state = buffer.chain_state()
+        assert forward_state is not None
+        assert forward_state[0] == 5
+
+        # Replay with a smaller seq — chain_state must stay at 5.
+        buffer.store(2, _to_bytes(_make_receipt(2)), prev_hash="h")
+        state = buffer.chain_state()
+        assert state is not None
+        last_seq, last_hash, _ = state
+        assert last_seq == 5
+        assert last_hash == compute_receipt_hash(_to_bytes(_make_receipt(5)))
+
+
+class TestBufferChainStateSessionId:
+    """``chain_state`` round-trips ``session_id`` and gracefully migrates
+    legacy buffer files that predate the column."""
+
+    _SESSION_A = "11111111-1111-4111-8111-aaaaaaaaaaaa"
+    _SESSION_B = "22222222-2222-4222-8222-bbbbbbbbbbbb"
+
+    def test_store_persists_session_id(self, buffer: LocalBuffer):
+        buffer.store(
+            1, _to_bytes(_make_receipt(1)), prev_hash="h", session_id=self._SESSION_A
+        )
+        state = buffer.chain_state()
+        assert state is not None
+        last_seq, _last_hash, persisted_session = state
+        assert last_seq == 1
+        assert persisted_session == self._SESSION_A
+
+    def test_store_advances_session_id_with_seq(self, buffer: LocalBuffer):
+        """Mid-session crash recovery's correctness depends on the most
+        recent session_id (not the first one) being persisted."""
+        buffer.store(
+            1, _to_bytes(_make_receipt(1)), prev_hash="h", session_id=self._SESSION_A
+        )
+        buffer.store(
+            2, _to_bytes(_make_receipt(2)), prev_hash="h", session_id=self._SESSION_B
+        )
+        state = buffer.chain_state()
+        assert state is not None
+        _last_seq, _last_hash, persisted_session = state
+        assert persisted_session == self._SESSION_B
+
+    def test_store_without_session_id_writes_null(self, buffer: LocalBuffer):
+        """A legacy caller that omits session_id keeps round-tripping
+        ``None`` so callers can detect the legacy state."""
+        buffer.store(1, _to_bytes(_make_receipt(1)), prev_hash="h")
+        state = buffer.chain_state()
+        assert state is not None
+        assert state[2] is None
+
+    def test_session_id_survives_prune_and_reopen(self, tmp_path: Path):
+        db_path = tmp_path / "session.db"
+        buf = LocalBuffer(db_path, TEST_KEY_SECRET)
+        buf.store(
+            1, _to_bytes(_make_receipt(1)), prev_hash="h", session_id=self._SESSION_A
+        )
+        buf.mark_flushed([1])
+        buf.prune_flushed()
+        buf.close()
+
+        buf2 = LocalBuffer(db_path, TEST_KEY_SECRET)
+        try:
+            state = buf2.chain_state()
+            assert state is not None
+            assert state[2] == self._SESSION_A
+        finally:
+            buf2.close()
+
+    def test_legacy_db_without_session_id_column_auto_migrates(self, tmp_path: Path):
+        """An ``ALTER TABLE`` runs on every open so a buffer file written
+        by the issue-#18-only SDK (no session_id column) keeps working
+        without crashing the host."""
+        import sqlite3
+
+        db_path = tmp_path / "legacy.db"
+
+        # Hand-craft the legacy schema: chain_state without session_id.
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(
+            """
+            CREATE TABLE receipts (
+                seq INTEGER PRIMARY KEY,
+                receipt_enc BLOB NOT NULL,
+                prev_hash TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE chain_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                key_anchor TEXT NOT NULL,
+                last_seq INTEGER NOT NULL,
+                last_hash TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        # Insert a legacy chain_state row using the same key fingerprint
+        # the new SDK will compute, so the key-rotation guard accepts it.
+        from aevs.crypto.chain import compute_key_fingerprint
+
+        conn.execute(
+            "INSERT INTO chain_state (id, key_anchor, last_seq, last_hash, updated_at) "
+            "VALUES (1, ?, ?, ?, ?)",
+            (compute_key_fingerprint(TEST_KEY_SECRET), 7, "h" * 64, "2026-01-01T00:00:00Z"),
+        )
+        conn.commit()
+        conn.close()
+
+        buf = LocalBuffer(db_path, TEST_KEY_SECRET)
+        try:
+            # Open succeeds; legacy chain_state row is readable and reports
+            # session_id=None so callers fall back to the "no session info"
+            # branch instead of bridging onto an unknown session.
+            state = buf.chain_state()
+            assert state is not None
+            last_seq, last_hash, session_id = state
+            assert last_seq == 7
+            assert last_hash == "h" * 64
+            assert session_id is None
+
+            # Subsequent stores can attach a session_id and the post-migration
+            # column accepts it.
+            buf.store(
+                8,
+                _to_bytes(_make_receipt(8)),
+                prev_hash="h",
+                session_id=self._SESSION_A,
+            )
+            new_state = buf.chain_state()
+            assert new_state is not None
+            assert new_state[2] == self._SESSION_A
+        finally:
+            buf.close()

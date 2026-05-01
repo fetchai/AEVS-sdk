@@ -7,10 +7,12 @@ class ReceiptPayload(TypedDict):
     """Typed schema for an AEVS receipt sent to POST /v1/receipts.
 
     All fields are required. The payload_hmac is added after the initial
-    dict is built (it covers all other fields).
+    dict is built (it covers all other fields, including session_id, so
+    tampering with the session boundary is detectable).
     """
 
     agent_id: str | None
+    session_id: str
     seq: int
     prev_hash: str
     tool_name: str

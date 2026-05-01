@@ -9,10 +9,14 @@ from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import verify_hmac
 from tests.conftest import TEST_API_KEY
 
+# Fixed session_id makes anchor-equality assertions reproducible across
+# tests; production code mints a fresh UUID per enable().
+_TEST_SESSION_ID = "00000000-0000-4000-8000-000000000001"
 
-def _make_builder(**kwargs) -> ReceiptBuilder:
+
+def _make_builder(*, session_id: str = _TEST_SESSION_ID, **kwargs) -> ReceiptBuilder:
     configure(api_key=TEST_API_KEY, **kwargs)
-    return ReceiptBuilder(get_config())
+    return ReceiptBuilder(get_config(), session_id=session_id)
 
 
 def _build_one(builder: ReceiptBuilder, **overrides) -> dict:
@@ -47,6 +51,54 @@ class TestReceiptBuilder:
         assert "prev_hash" in receipt
         assert "reference_id" in receipt
         assert len(receipt["reference_id"]) == 36
+        assert receipt["session_id"] == _TEST_SESSION_ID
+
+    def test_session_id_constant_within_builder(self):
+        """Every receipt produced by one builder shares the builder's
+        session_id — that's what makes the chain anchored to a single
+        session."""
+        builder = _make_builder()
+        receipts = [_build_one(builder) for _ in range(3)]
+        assert {r["session_id"] for r in receipts} == {_TEST_SESSION_ID}
+
+    def test_session_id_differs_across_builders(self):
+        """Two independently constructed builders carry different
+        session_ids by default — caller is responsible for picking."""
+        b1 = _make_builder(session_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+        b2 = _make_builder(session_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+        r1 = _build_one(b1)
+        r2 = _build_one(b2)
+        assert r1["session_id"] != r2["session_id"]
+        assert r1["prev_hash"] != r2["prev_hash"], (
+            "different session_id must yield a different anchor "
+            "(else the cryptographic isolation is broken)"
+        )
+
+    def test_session_id_covered_by_payload_hmac(self):
+        """Tampering with session_id post-build must invalidate the HMAC
+        so a forged session boundary is detectable."""
+        builder = _make_builder()
+        receipt = _build_one(builder)
+        cfg = get_config()
+        payload_key = derive_key(cfg.key_secret, salt="aevs-payload-v1")
+        original_hmac = receipt.pop("payload_hmac")
+
+        # Sanity: the unmodified canonical bytes verify.
+        assert verify_hmac(
+            payload_key,
+            canonical_json(receipt, float_handling=cfg.float_handling,
+                           float_precision=cfg.float_precision),
+            original_hmac,
+        )
+
+        # Flip the session_id and the HMAC must no longer verify.
+        receipt["session_id"] = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+        assert not verify_hmac(
+            payload_key,
+            canonical_json(receipt, float_handling=cfg.float_handling,
+                           float_precision=cfg.float_precision),
+            original_hmac,
+        )
 
     def test_sequence_increments(self):
         builder = _make_builder()
@@ -61,7 +113,7 @@ class TestReceiptBuilder:
         builder = _make_builder()
         cfg = get_config()
         receipt = _build_one(builder)
-        expected_anchor = compute_chain_anchor(cfg.key_secret)
+        expected_anchor = compute_chain_anchor(cfg.key_secret, _TEST_SESSION_ID)
         assert receipt["prev_hash"] == expected_anchor
 
     def test_chain_links(self):
