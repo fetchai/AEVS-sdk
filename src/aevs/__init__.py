@@ -1,17 +1,31 @@
 from aevs._version import __version__
-from aevs.config import configure
+from aevs.config import AEVSConfig, configure, reset_config
+from aevs.exceptions import (
+    AEVSAuthError,
+    AEVSBufferError,
+    AEVSConfigError,
+    AEVSError,
+    AEVSSerializationError,
+)
 
 __all__ = [
     "__version__",
+    "AEVSAuthError",
+    "AEVSBufferError",
+    "AEVSConfig",
+    "AEVSConfigError",
+    "AEVSError",
+    "AEVSSerializationError",
+    "clear_reference_ids",
     "configure",
-    "enable",
     "disable",
+    "enable",
     "flush",
-    "is_healthy",
     "get_reference_id",
     "get_reference_ids",
-    "clear_reference_ids",
     "get_session_id",
+    "is_healthy",
+    "reset_config",
 ]
 
 
