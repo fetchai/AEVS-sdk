@@ -36,7 +36,7 @@ class TestConfigure:
         cfg = get_config()
         assert cfg.key_id == TEST_KEY_ID
         assert cfg.key_secret == TEST_KEY_SECRET
-        assert cfg.base_url == "https://aevs.fetch.ai/v1"
+        assert cfg.base_url == "https://api.aevs.fetch.ai/v1"
         assert cfg.float_handling == "decimal_string"
 
     def test_custom_values(self):
