@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Default permissions are read-only; individual jobs raise what they need.
+permissions:
+  contents: read
+
+env:
+  POETRY_VERSION: "1.8.3"
+  POETRY_VIRTUALENVS_IN_PROJECT: "true"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  guard:
+    name: Verify tag matches pyproject version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install "poetry==${{ env.POETRY_VERSION }}"
+
+      - name: Assert tag matches pyproject version
+        id: check
+        # Strips the leading `v` and asserts equality.  Stops the
+        # "tagged before bumping" foot-gun before any artefact is built.
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PROJ="$(poetry version -s)"
+          echo "tag:       $TAG"
+          echo "pyproject: $PROJ"
+          if [ "$TAG" != "$PROJ" ]; then
+            echo "::error::git tag v$TAG does not match pyproject version $PROJ"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build sdist + wheel
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install "poetry==${{ env.POETRY_VERSION }}"
+
+      - name: Install dependencies
+        run: poetry install --all-extras --no-interaction
+
+      - name: Run gates against the tagged commit
+        # Defensive re-run of the same gates as ci.yml: the tagged SHA
+        # must independently satisfy lint, types, tests, and version
+        # consistency before we even build the artefact we'll publish.
+        run: |
+          poetry run ruff check src tests
+          poetry run mypy src
+          poetry run pytest -q
+
+      - name: Build distributions
+        run: poetry build
+
+      - name: Validate distributions render on PyPI
+        run: |
+          poetry run python -m pip install --quiet twine
+          poetry run twine check --strict dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    # The `pypi` GitHub environment gates this job behind required
+    # reviewers configured in repo settings.  Combined with the tag
+    # protection rule on `v*`, this means: maintainer pushes a tag,
+    # workflow stops here, a second maintainer clicks Approve, then
+    # the upload runs.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/aevs/${{ needs.guard.outputs.version }}/
+    permissions:
+      id-token: write   # OIDC token for Trusted Publishing
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI via Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # No `password:` field — the action uses OIDC.
+          # The PyPI project must have a Trusted Publisher registered
+          # for this repo, this workflow file, and this environment.
+          attestations: true   # PEP 740 Sigstore provenance — free with OIDC
+
+  github-release:
+    name: Create GitHub Release
+    needs: [guard, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Create GitHub Release with auto-generated notes
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ needs.guard.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(needs.guard.outputs.version, 'a') || contains(needs.guard.outputs.version, 'b') || contains(needs.guard.outputs.version, 'rc') || contains(needs.guard.outputs.version, '.dev') }}
