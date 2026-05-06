@@ -37,6 +37,8 @@ aevs.enable()                            # Auto-detect frameworks and start inte
 aevs.enable(frameworks=["langchain"])    # Or specify explicitly
 aevs.disable()                           # Unpatch all frameworks, restore originals
 aevs.flush()                             # Force-send buffered receipts to backend
+aevs.get_session_id()                    # UUID minted at enable(); stamped on every receipt
+aevs.is_healthy()                        # False after sustained buffer write failures
 ```
 
 ### Configuration Options
@@ -45,7 +47,7 @@ aevs.flush()                             # Force-send buffered receipts to backe
 |-----------|---------|-------------|
 | `api_key` | *(required)* | SDK key from customer creation (`aevs_sk_<id>_<hex>`) |
 | `agent_id` | `None` | Agent UUID to tag receipts with |
-| `base_url` | `https://aevs.fetch.ai/v1` | AEVS backend URL |
+| `base_url` | `https://api.aevs.fetch.ai/v1` | AEVS backend URL |
 | `signing_timeout_ms` | `2000` | HTTP timeout for receipt submission |
 | `float_handling` | `"decimal_string"` | How floats are serialized (`decimal_string` or `raise`) |
 | `float_precision` | `6` | Decimal places for float serialization |
@@ -79,6 +81,27 @@ aevs.get_reference_ids(clear=True)  # Get all entries, then clear
 aevs.clear_reference_ids()          # Drop all entries
 ```
 
+### Session IDs
+
+Each `enable()` mints a fresh UUIDv4 **session id**. The id is stamped
+on every receipt produced in that session and participates in the hash
+chain anchor — two SDK processes that share an API key cannot fork the
+chain by construction.
+
+```python
+aevs.enable()
+session = aevs.get_session_id()
+# "5db7d195-f84c-4f90-ae12-d74d001d3f9d"
+
+aevs.disable()
+aevs.get_session_id()
+# None
+```
+
+Useful for log correlation: every receipt carries `session_id`, so
+filtering receipts by session in the AEVS backend isolates a single
+SDK run.
+
 ## Development
 
 ### Prerequisites
@@ -90,35 +113,41 @@ aevs.clear_reference_ids()          # Drop all entries
 
 ```bash
 git clone https://github.com/fetchai/AEVS-sdk.git && cd AEVS-sdk
-poetry install --all-extras   # installs langchain + mcp extras for dev
+make install   # poetry install --all-extras
 ```
 
-### Running Tests
+### Common commands
+
+The `Makefile` wraps the everyday workflow. Run `make help` to see the
+full list.
 
 ```bash
-poetry run pytest              # all tests
-poetry run pytest -v           # verbose
-poetry run pytest --cov=aevs   # with coverage report
+make test        # run the test suite
+make test-cov    # tests with coverage (HTML report in ./htmlcov)
+make lint        # ruff check
+make format      # ruff format + auto-fix
+make typecheck   # mypy --strict on src/
+make check       # lint + typecheck + tests (the CI gate)
+make build       # build sdist + wheel into ./dist
 ```
 
-### Running a Specific Test File
+You can still call the underlying tools directly:
 
 ```bash
 poetry run pytest tests/test_integration.py -v
-```
-
-### Linting
-
-```bash
 poetry run ruff check src/ tests/
-poetry run ruff check --fix src/ tests/   # auto-fix
-```
-
-### Type Checking
-
-```bash
 poetry run mypy src/
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — branch
+naming, Conventional Commits, the PR checklist, and release flow.
+
+## Reporting Security Issues
+
+Please **do not** open a public GitHub issue for security problems.
+See [SECURITY.md](SECURITY.md) for the disclosure process.
 
 ## Architecture
 
