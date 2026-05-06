@@ -169,7 +169,8 @@ class LocalBuffer:
             last_hash = compute_receipt_hash(payload_bytes)
             self._conn.execute(
                 """
-                INSERT INTO chain_state (id, key_anchor, last_seq, last_hash, session_id, updated_at)
+                INSERT INTO chain_state
+                    (id, key_anchor, last_seq, last_hash, session_id, updated_at)
                 VALUES (1, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     key_anchor = excluded.key_anchor,
