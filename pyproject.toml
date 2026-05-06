@@ -28,6 +28,9 @@ classifiers = [
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/fetchai/AEVS-sdk/issues"
+"Changelog" = "https://github.com/fetchai/AEVS-sdk/blob/main/CHANGELOG.md"
+"Documentation" = "https://github.com/fetchai/AEVS-sdk#readme"
+"Source" = "https://github.com/fetchai/AEVS-sdk"
 
 [tool.poetry.dependencies]
 python = "^3.10"
