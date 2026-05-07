@@ -24,7 +24,7 @@ class AEVSConfig:
     key_id: str
     key_secret: bytes
     agent_id: str | None = None
-    base_url: str = "https://aevs.fetch.ai/v1"
+    base_url: str = "https://api.aevs.fetch.ai/v1"
     signing_timeout_ms: int = 2000
     float_handling: str = "decimal_string"
     float_precision: int = 6
@@ -113,7 +113,7 @@ def configure(
     *,
     api_key: str,
     agent_id: str | None = None,
-    base_url: str = "https://aevs.fetch.ai/v1",
+    base_url: str = "https://api.aevs.fetch.ai/v1",
     signing_timeout_ms: int = 2000,
     float_handling: str = "decimal_string",
     float_precision: int = 6,

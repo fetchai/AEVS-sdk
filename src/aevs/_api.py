@@ -172,7 +172,10 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                 try:
                     new_client.close()
                 except Exception:
-                    logger.debug("AEVS: error closing client during buffer init rollback", exc_info=True)
+                    logger.debug(
+                        "AEVS: error closing client during buffer init rollback",
+                        exc_info=True,
+                    )
             raise
 
         # Session lifecycle gate — decides between three states based on
@@ -519,7 +522,12 @@ def _handle_tool_call(**kwargs: Any) -> None:
         with _state_lock:
             if not _enabled or _buffer is not buffer or _receipt_builder is not builder:
                 return
-            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"], session_id=receipt.get("session_id"))
+            buffer.store(
+                receipt["seq"],
+                payload_bytes,
+                receipt["prev_hash"],
+                session_id=receipt.get("session_id"),
+            )
         _consecutive_store_failures = 0
     except Exception:
         _consecutive_store_failures += 1
@@ -566,7 +574,12 @@ async def _handle_tool_call_async(**kwargs: Any) -> None:
         with _state_lock:
             if not _enabled or _buffer is not buffer or _receipt_builder is not builder:
                 return
-            buffer.store(receipt["seq"], payload_bytes, receipt["prev_hash"], session_id=receipt.get("session_id"))
+            buffer.store(
+                receipt["seq"],
+                payload_bytes,
+                receipt["prev_hash"],
+                session_id=receipt.get("session_id"),
+            )
         _consecutive_store_failures = 0
     except Exception:
         _consecutive_store_failures += 1
