@@ -92,9 +92,6 @@ db.sqlite3-journal
 # Logs
 *.log
 
-# Poetry lock (library — consumers resolve their own deps)
-poetry.lock
-
 # Stray lockfiles from other tools we don't use
 uv.lock
 Pipfile.lock

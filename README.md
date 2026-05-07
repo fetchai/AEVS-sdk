@@ -4,6 +4,13 @@ Agent Execution Verification System — transparent audit SDK for AI agents.
 
 Intercepts tool calls from supported frameworks, builds tamper-evident receipts (HMAC-signed, hash-chained), and sends them to the AEVS backend. Zero changes to your agent code.
 
+## Compatibility
+
+- Python 3.10+
+- Framework adapters:
+  - `aevs[langchain]` for LangChain / LangGraph tool interception
+  - `aevs[mcp]` for MCP tool interception (requires `mcp>=1.20`)
+
 ## Installation
 
 ```bash
@@ -101,6 +108,24 @@ aevs.get_session_id()
 Useful for log correlation: every receipt carries `session_id`, so
 filtering receipts by session in the AEVS backend isolates a single
 SDK run.
+
+## Data & privacy
+
+AEVS receipts may include **tool inputs and outputs**, which can contain secrets or PII depending
+on what your tools return (e.g. prompts, retrieved documents, API responses).
+
+- Receipts are buffered locally in an encrypted SQLite database (default `~/.aevs/buffer.db`).
+- Receipts are submitted to the AEVS backend over HTTPS by default (`base_url`).
+
+You are responsible for ensuring your tool layer does not emit sensitive data you cannot store or
+transmit. If needed, redact at the tool boundary (before data reaches the agent runtime).
+
+## Threat model / non-goals
+
+- AEVS is **tamper-evident**, not tamper-proof. It helps detect modification/reordering of receipts
+  after the fact; it does not secure a fully compromised host process.
+- The SDK signs requests with a key derived from your API key secret; protect the API key like any
+  other credential.
 
 ## Development
 

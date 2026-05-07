@@ -6,7 +6,11 @@ For security issues, please **do not open a public issue or PR** — see [SECURI
 
 ## Code of conduct
 
-Be respectful and assume good faith. Critique code, not people.
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). In short:
+
+- Be respectful and assume good faith.
+- Critique code, not people.
+- Harassment or abusive behavior is not tolerated.
 
 ## Questions
 
