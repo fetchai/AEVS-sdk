@@ -119,7 +119,12 @@ def _warn_dual_mcp_langchain(adapters: list[Any]) -> None:
 
 
 def enable(*, frameworks: list[str] | None = None) -> None:
-    """Detect installed frameworks, patch them, and start intercepting tool calls."""
+    """Detect installed frameworks, patch them, and start intercepting tool calls.
+
+    If :func:`aevs.configure` was never called, or was called without a
+    valid API key, ``enable()`` logs a warning and returns immediately —
+    keeping the host agent running in no-op mode.
+    """
     global _receipt_builder, _client, _buffer, _drainer, _enabled, _session_id
 
     with _state_lock:
@@ -131,7 +136,11 @@ def enable(*, frameworks: list[str] | None = None) -> None:
         from aevs.core.client import AEVSClient
         from aevs.core.receipt import ReceiptBuilder
 
-        config = get_config()
+        try:
+            config = get_config()
+        except AEVSConfigError:
+            logger.warning("aevs.configure() must be called before aevs.enable().")
+            return
 
         new_client: AEVSClient | None = None
         new_buffer: LocalBuffer | None = None

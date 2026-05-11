@@ -11,7 +11,7 @@ class ReceiptPayload(TypedDict):
     tampering with the session boundary is detectable).
     """
 
-    agent_id: str | None
+    agent_id: str
     session_id: str
     seq: int
     prev_hash: str

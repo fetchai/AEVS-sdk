@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,7 +25,7 @@ class AEVSConfig:
     api_key: str
     key_id: str
     key_secret: bytes
-    agent_id: str | None = None
+    agent_id: str
     base_url: str = "https://api.aevs.fetch.ai/v1"
     signing_timeout_ms: int = 2000
     float_handling: str = "decimal_string"
@@ -50,7 +52,7 @@ def _parse_api_key(api_key: str) -> tuple[str, bytes]:
     match = _API_KEY_RE.match(api_key)
     if not match:
         raise AEVSConfigError(
-            "Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret>"
+            f"Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret>"
         )
     key_id = match.group(1)
     hex_secret = match.group(2)
@@ -65,6 +67,27 @@ def _parse_api_key(api_key: str) -> tuple[str, bytes]:
     except ValueError as exc:
         raise AEVSConfigError(f"API key secret is not valid hex: {exc}") from exc
     return key_id, key_secret
+
+
+def _validate_agent_id(agent_id: str) -> None:
+    """Validate that agent_id is a canonical UUID string."""
+    if len(agent_id) == 32 and re.fullmatch(r"[a-fA-F0-9]+", agent_id):
+        dashed = f"{agent_id[:8]}-{agent_id[8:12]}-{agent_id[12:16]}-{agent_id[16:20]}-{agent_id[20:]}"
+        raise AEVSConfigError(
+            f"agent_id looks like a UUID without dashes — use '{dashed}'"
+        )
+    if agent_id.startswith(("agt_", "agent_")):
+        raise AEVSConfigError(
+            f"agent_id must be a UUID, not a prefixed identifier: {agent_id!r}"
+        )
+    try:
+        parsed = uuid.UUID(agent_id)
+    except (ValueError, AttributeError):
+        raise AEVSConfigError(f"agent_id must be a valid UUID, got {agent_id!r}")
+    if str(parsed) != agent_id.lower():
+        raise AEVSConfigError(
+            f"agent_id must be a canonical UUID string — use '{parsed}'"
+        )
 
 
 def _warn_if_insecure_remote_http(base_url: str) -> None:
@@ -111,7 +134,7 @@ _global_config: AEVSConfig | None = None
 
 def configure(
     *,
-    api_key: str,
+    api_key: str | None = None,
     agent_id: str | None = None,
     base_url: str = "https://api.aevs.fetch.ai/v1",
     signing_timeout_ms: int = 2000,
@@ -125,8 +148,9 @@ def configure(
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
 
-    Raises AEVSConfigError if called while AEVS is enabled — call
-    aevs.disable() first to reconfigure.
+    *api_key* and *agent_id* fall back to ``AEVS_API_KEY`` /
+    ``AEVS_AGENT_ID`` env vars.  If either is still missing the SDK
+    logs a warning and enters no-op mode (never crashes the host).
     """
     global _global_config
 
@@ -136,12 +160,35 @@ def configure(
             "Cannot reconfigure while AEVS is enabled. Call aevs.disable() first."
         )
 
-    key_id, key_secret = _parse_api_key(api_key)
+    resolved_key = api_key or os.environ.get("AEVS_API_KEY")
+    resolved_agent_id = agent_id or os.environ.get("AEVS_AGENT_ID")
+
+    missing = []
+    if not resolved_key:
+        missing.append("api_key")
+    if not resolved_agent_id:
+        missing.append("agent_id")
+    if missing:
+        opts = " and ".join(missing)
+        envs = " / ".join(
+            f"AEVS_{m.upper()}" for m in missing
+        )
+        logger.warning(
+            "The %s client option must be set either by passing %s to "
+            "aevs.configure() or by setting the %s environment variable. "
+            "Get your credentials at https://aevs.fetch.ai",
+            opts, opts, envs,
+        )
+        _global_config = None
+        return
+
+    key_id, key_secret = _parse_api_key(resolved_key)
+    _validate_agent_id(resolved_agent_id)
     config = AEVSConfig(
-        api_key=api_key,
+        api_key=resolved_key,
         key_id=key_id,
         key_secret=key_secret,
-        agent_id=agent_id,
+        agent_id=resolved_agent_id,
         base_url=base_url.rstrip("/"),
         signing_timeout_ms=signing_timeout_ms,
         float_handling=float_handling,
@@ -160,7 +207,7 @@ def configure(
 def get_config() -> AEVSConfig:
     """Return the current config. Raises if not configured."""
     if _global_config is None:
-        raise AEVSConfigError("AEVS not configured. Call aevs.configure() first.")
+        raise AEVSConfigError("aevs.configure() must be called before using the SDK.")
     return _global_config
 
 
