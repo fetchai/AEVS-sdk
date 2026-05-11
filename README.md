@@ -98,10 +98,11 @@ aevs.clear_reference_ids()          # Drop all entries
 
 ### Session IDs
 
-Each `enable()` mints a fresh UUIDv4 **session id**. The id is stamped
-on every receipt produced in that session and participates in the hash
-chain anchor — two SDK processes that share an API key cannot fork the
-chain by construction.
+Each `enable()` mints a fresh UUIDv4 **session id** — *or recovers a
+persisted one if the previous run crashed with unflushed receipts*. The
+id is stamped on every receipt produced in that session and participates
+in the hash chain anchor; two SDK processes that share an API key cannot
+fork the chain by construction.
 
 ```python
 aevs.enable()
@@ -112,6 +113,16 @@ aevs.disable()
 aevs.get_session_id()
 # None
 ```
+
+**Crash recovery semantics.** If the previous process exited with
+un-flushed receipts (network down, OS kill, hard crash), the next
+`enable()` reuses that session's id so old and new receipts ship as one
+hash-linked chain — you'll see the same id across runs in this case, by
+design. A clean shutdown (all receipts flushed) always mints a fresh
+id. The INFO log line on each `enable()` —
+`AEVS: mid-session crash recovery — resuming session_id=...` vs.
+`AEVS: clean drain detected — minting new session ...` — tells you
+which path fired.
 
 Useful for log correlation: every receipt carries `session_id`, so
 filtering receipts by session in the AEVS backend isolates a single
