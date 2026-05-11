@@ -79,7 +79,7 @@ Every intercepted tool call gets a `reference_id` (UUID v4) embedded in its rece
 ```python
 response = await agent.ainvoke({"messages": [("user", query)]})
 refs = aevs.get_reference_ids(clear=True)
-# [{"seq": 1, "tool_name": "search", "reference_id": "abc-...", "run_id": "def-..."}, ...]
+# [{"seq": 1, "tool_name": "search", "reference_id": "abc-...", "run_id": "def-...", "tool_call_id": "ghi-..."}, ...]
 ```
 
 Verify any `reference_id` via the public backend endpoint (no auth required):

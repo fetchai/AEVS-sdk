@@ -972,6 +972,31 @@ class TestReferenceRegistry:
         assert ids[1]["reference_id"] == "ref-2"
         assert len(api._reference_deque) == 2
 
+    def test_get_reference_ids_entry_shape_matches_docstring(self):
+        """Pins the dict's key set against the public docstring; if a
+        field is added or renamed, this test fails so the docstring (and
+        README example) cannot silently drift out of sync."""
+        api._reference_deque.clear()
+        api._reference_registry.clear()
+        api._record_reference(7, "search", "ref-x", "run-x", "tc-x")
+
+        ids = api.get_reference_ids()
+        assert len(ids) == 1
+        assert set(ids[0].keys()) == {
+            "seq",
+            "tool_name",
+            "reference_id",
+            "run_id",
+            "tool_call_id",
+        }
+        assert ids[0] == {
+            "seq": 7,
+            "tool_name": "search",
+            "reference_id": "ref-x",
+            "run_id": "run-x",
+            "tool_call_id": "tc-x",
+        }
+
     def test_get_reference_ids_with_clear(self):
         api._reference_deque.clear()
         api._reference_registry.clear()

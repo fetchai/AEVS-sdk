@@ -652,7 +652,7 @@ def get_reference_ids(*, clear: bool = False) -> list[dict[str, str | int | None
     """Return all reference entries recorded since the last clear.
 
     Each entry is ``{"seq": int, "tool_name": str, "reference_id": str,
-    "run_id": str | None}``.
+    "run_id": str | None, "tool_call_id": str | None}``.
 
     If *clear* is True the internal registry is emptied after copying,
     which is the recommended pattern for per-request web applications.
