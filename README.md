@@ -29,12 +29,20 @@ pip install aevs[mcp]         # MCP tool support
 ```python
 import aevs
 
-aevs.configure(api_key="aevs_sk_<key_id>_<hex_secret>")
+aevs.configure(
+    api_key="aevs_sk_<key_id>_<hex_secret>",
+    agent_id="<your-agent-uuid>",
+)
 aevs.enable()
 
 # Every tool call from this point is intercepted.
 # No changes to tools, agents, or LLM setup.
 ```
+
+Both `api_key` and `agent_id` can also be set via environment variables
+(`AEVS_API_KEY` / `AEVS_AGENT_ID`). If either is missing the SDK logs a
+warning and runs in no-op mode — your agent keeps working, receipts are
+just not recorded. Get your credentials at https://aevs.fetch.ai.
 
 ## API
 
@@ -52,8 +60,8 @@ aevs.is_healthy()                        # False after sustained buffer write fa
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `api_key` | *(required)* | SDK key from customer creation (`aevs_sk_<id>_<hex>`) |
-| `agent_id` | `None` | Agent UUID to tag receipts with |
+| `api_key` | **required** — falls back to `AEVS_API_KEY` env var | SDK key (`aevs_sk_<id>_<hex>`) — get one at https://aevs.fetch.ai |
+| `agent_id` | **required** — falls back to `AEVS_AGENT_ID` env var | Agent UUID from the AEVS dashboard |
 | `base_url` | `https://api.aevs.fetch.ai/v1` | AEVS backend URL |
 | `signing_timeout_ms` | `2000` | HTTP timeout for receipt submission |
 | `float_handling` | `"decimal_string"` | How floats are serialized (`decimal_string` or `raise`) |
