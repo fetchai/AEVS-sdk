@@ -52,7 +52,7 @@ def _parse_api_key(api_key: str) -> tuple[str, bytes]:
     match = _API_KEY_RE.match(api_key)
     if not match:
         raise AEVSConfigError(
-            f"Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret>"
+            "Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret>"
         )
     key_id = match.group(1)
     hex_secret = match.group(2)
@@ -72,7 +72,10 @@ def _parse_api_key(api_key: str) -> tuple[str, bytes]:
 def _validate_agent_id(agent_id: str) -> None:
     """Validate that agent_id is a canonical UUID string."""
     if len(agent_id) == 32 and re.fullmatch(r"[a-fA-F0-9]+", agent_id):
-        dashed = f"{agent_id[:8]}-{agent_id[8:12]}-{agent_id[12:16]}-{agent_id[16:20]}-{agent_id[20:]}"
+        dashed = (
+            f"{agent_id[:8]}-{agent_id[8:12]}-{agent_id[12:16]}-"
+            f"{agent_id[16:20]}-{agent_id[20:]}"
+        )
         raise AEVSConfigError(
             f"agent_id looks like a UUID without dashes — use '{dashed}'"
         )
@@ -181,6 +184,11 @@ def configure(
         )
         _global_config = None
         return
+
+    # Type-narrow for mypy: the `missing`/early-return above already handled
+    # the None and empty-string cases, so neither assertion can fire at runtime.
+    assert resolved_key is not None
+    assert resolved_agent_id is not None
 
     key_id, key_secret = _parse_api_key(resolved_key)
     _validate_agent_id(resolved_agent_id)

@@ -98,7 +98,11 @@ class TestConfigure:
         """configure() must reject calls while AEVS is enabled."""
         import aevs
 
-        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         aevs.enable(frameworks=["langchain"])
         try:
             with pytest.raises(AEVSConfigError, match="Cannot reconfigure"):
@@ -110,7 +114,11 @@ class TestConfigure:
         """configure() should work again after disable()."""
         import aevs
 
-        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         aevs.enable(frameworks=["langchain"])
         aevs.disable()
         new_agent_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
