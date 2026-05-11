@@ -44,10 +44,51 @@ A pull request with a fix is even more welcome.
    ```bash
    make check    # lint + typecheck + tests
    ```
-6. Commit (see [commit conventions](#commit-messages)).
+6. Commit with a DCO sign-off (see [Developer Certificate of Origin](#developer-certificate-of-origin)) and a conventional-commit subject (see [commit conventions](#commit-messages)).
 7. Open a PR against `main` describing what changed and why.
 
 Smaller, focused PRs are easier to review and merge faster.
+
+## Developer Certificate of Origin
+
+This project is licensed under [Apache License 2.0](LICENSE) and uses the
+[Developer Certificate of Origin (DCO) v1.1](DCO) to track the provenance of
+contributions. The DCO is a lightweight alternative to a Contributor License
+Agreement: by signing off on a commit you certify that you wrote the change (or
+otherwise have the right to submit it under this project's license) — full text
+is in the [DCO](DCO) file at the repo root.
+
+**Every commit in a PR must be signed off.** Add the sign-off automatically by
+committing with `-s`:
+
+```bash
+git commit -s -m "feat(scope): short description"
+```
+
+This appends a trailer to the commit message:
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+The name and email must match your `git config user.name` / `user.email`. Use
+your real name; anonymous or pseudonymous sign-offs are not accepted.
+
+If you forget the sign-off on commits already pushed to your branch, amend or
+rebase to add it before review:
+
+```bash
+# Just the last commit
+git commit --amend --signoff
+
+# All commits on this branch since main
+git rebase --signoff main
+
+git push --force-with-lease
+```
+
+The DCO check runs in CI on every pull request and will block the merge until
+all commits carry a valid `Signed-off-by` trailer.
 
 ## Commit messages
 
