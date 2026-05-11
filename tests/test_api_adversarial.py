@@ -531,6 +531,122 @@ class TestChainResumeAfterDrain:
             api.disable()
 
     @respx.mock
+    def test_clean_drain_then_crash_does_not_resurrect_prior_session(
+        self, tmp_path
+    ):
+        """Regression for review-findings.md issue #1.
+
+        Trace: session A drains cleanly to seq=5; session B starts and
+        reaches only seq=3 before crashing.  The next ``enable()`` must
+        recover under session B, not splice session A's identity onto
+        the un-flushed receipts.
+        """
+        from aevs.core.buffer import LocalBuffer
+
+        # Cycle 1: full clean drain under session A.
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+
+        # Session A must reach a last_seq strictly greater than the
+        # count session B will reach before its crash, otherwise the
+        # UPSERT guard fires for session B's later writes and the bug
+        # self-heals.
+        api.enable(frameworks=[])
+        session_a = api.get_session_id()
+        assert session_a is not None
+        try:
+            for _ in range(5):
+                self._trigger_one_call()
+            api.flush()
+        finally:
+            api.disable()
+
+        # Pre-condition for the bug: the stale row exists on disk.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 0
+            persisted = buf.chain_state()
+            assert persisted is not None
+            persisted_seq, _, persisted_session = persisted
+            assert persisted_session == session_a
+            assert persisted_seq == 5, (
+                f"cycle 1 should have advanced chain_state to seq=5; "
+                f"got {persisted_seq}"
+            )
+        finally:
+            buf.close()
+
+        # Cycle 2: enable session B, store 3 receipts (< 5), then crash.
+        respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("crashed"))
+
+        api.enable(frameworks=[])
+        session_b = api.get_session_id()
+        assert session_b is not None
+        assert session_b != session_a
+        for _ in range(3):
+            self._trigger_one_call()
+        # Bypass disable() to drop runtime state without a final flush.
+        api._receipt_builder = None
+        api._client = None
+        api._buffer = None
+        api._drainer = None
+        api._adapters.clear()
+        api._enabled = False
+        api._session_id = None
+
+        # Core invariant: chain_state must reflect session B, never A.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 3
+            persisted = buf.chain_state()
+            assert persisted is not None
+            _, _, persisted_session = persisted
+            assert persisted_session == session_b, (
+                f"clean-drain reset failed — chain_state still reports "
+                f"the prior session.  Got persisted_session={persisted_session!r}, "
+                f"expected {session_b!r} (session A was {session_a!r}).  "
+                f"A crash now would splice the two sessions into one "
+                f"chain shipped to the backend (issue #1)."
+            )
+        finally:
+            buf.close()
+
+        # Cycle 3: recover, flush, verify the wire.
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+
+            successful = [
+                json.loads(c.request.content)
+                for c in respx.calls
+                if c.has_response and c.response.status_code == 200
+            ]
+            # Cycle 1's POSTs also returned 200, so filter by session.
+            post_crash = [r for r in successful if r["session_id"] != session_a]
+            assert len(post_crash) == 4, (
+                f"expected 4 post-crash POSTs (3 buffered + 1 new); got {len(post_crash)}"
+            )
+
+            session_ids = {r["session_id"] for r in post_crash}
+            assert session_ids == {session_b}, (
+                f"backend received receipts under the wrong session — "
+                f"got {session_ids}, expected {{{session_b!r}}}"
+            )
+
+            seqs = sorted(r["seq"] for r in post_crash)
+            assert seqs == [1, 2, 3, 4], f"sequence not contiguous: {seqs}"
+        finally:
+            api.disable()
+
+    @respx.mock
     def test_post_drain_resume_survives_rotated_key_by_starting_fresh(
         self, tmp_path
     ):
