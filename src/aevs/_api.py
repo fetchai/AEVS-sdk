@@ -271,7 +271,12 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     start_seq,
                 )
             elif pending == 0 and persisted is not None:
-                # Clean drain — explicit log, but no resume.
+                # Drop the prior session's chain_state row before the
+                # new session writes its first receipt; store()'s
+                # monotonic UPSERT guard would otherwise refuse to
+                # overwrite it and a crash here would mis-route the
+                # next enable() into recovery against the wrong session.
+                new_buffer.reset_chain_state()
                 logger.info(
                     "AEVS: clean drain detected — minting new session %s, "
                     "starting fresh chain",

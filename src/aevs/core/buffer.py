@@ -238,6 +238,25 @@ class LocalBuffer:
         result: ReceiptPayload = json.loads(raw)
         return result
 
+    def reset_chain_state(self) -> None:
+        """Delete the persisted chain fingerprint row.
+
+        Called by ``enable()`` on a clean drain before minting a fresh
+        ``session_id``.  Without this the next ``store()`` cannot
+        overwrite the prior row — the UPSERT guard requires a strictly
+        greater ``last_seq`` — so a crash before the new session
+        surpasses the prior ``last_seq`` would mis-route recovery
+        against the wrong session.
+
+        Uses ``DELETE`` (not ``UPDATE ... SET session_id = NULL``) so
+        :meth:`chain_state` returns ``None`` afterwards; a NULL
+        ``session_id`` is reserved for legacy rows written before the
+        column existed.
+        """
+        with self._lock:
+            self._conn.execute("DELETE FROM chain_state WHERE id = 1")
+            self._conn.commit()
+
     def chain_state(self) -> tuple[int, str, str | None] | None:
         """Return ``(last_seq, last_hash, session_id)`` of the most recent stored receipt.
 
