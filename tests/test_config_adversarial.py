@@ -11,7 +11,7 @@ import pytest
 
 from aevs.config import AEVSConfig, _parse_api_key, configure, get_config
 from aevs.exceptions import AEVSConfigError
-from tests.conftest import TEST_API_KEY
+from tests.conftest import TEST_AGENT_ID, TEST_API_KEY
 
 
 class TestParseApiKeyHexValidation:
@@ -36,30 +36,30 @@ class TestParseApiKeyHexValidation:
 class TestConfigValidationEdgeCases:
     def test_rejects_zero_drain_interval(self):
         with pytest.raises(AEVSConfigError, match="drain_interval_ms"):
-            configure(api_key=TEST_API_KEY, drain_interval_ms=0)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, drain_interval_ms=0)
 
     def test_rejects_negative_drain_interval(self):
         with pytest.raises(AEVSConfigError, match="drain_interval_ms"):
-            configure(api_key=TEST_API_KEY, drain_interval_ms=-100)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, drain_interval_ms=-100)
 
     def test_rejects_zero_max_reference_entries(self):
         with pytest.raises(AEVSConfigError, match="max_reference_entries"):
-            configure(api_key=TEST_API_KEY, max_reference_entries=0)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_reference_entries=0)
 
     def test_rejects_negative_max_reference_entries(self):
         with pytest.raises(AEVSConfigError, match="max_reference_entries"):
-            configure(api_key=TEST_API_KEY, max_reference_entries=-1)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_reference_entries=-1)
 
     def test_rejects_zero_max_payload_bytes(self):
         with pytest.raises(AEVSConfigError, match="max_payload_bytes"):
-            configure(api_key=TEST_API_KEY, max_payload_bytes=0)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_payload_bytes=0)
 
     def test_rejects_negative_max_payload_bytes(self):
         with pytest.raises(AEVSConfigError, match="max_payload_bytes"):
-            configure(api_key=TEST_API_KEY, max_payload_bytes=-1)
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_payload_bytes=-1)
 
     def test_accepts_valid_raise_float_handling(self):
-        configure(api_key=TEST_API_KEY, float_handling="raise")
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, float_handling="raise")
         assert get_config().float_handling == "raise"
 
 
@@ -71,13 +71,14 @@ class TestAEVSConfigRepr:
             api_key=short_key,
             key_id="k",
             key_secret=b"\xab" * 16,
+            agent_id=TEST_AGENT_ID,
         )
         r = repr(config)
         assert "***" in r
         assert short_key not in r
 
     def test_repr_with_long_api_key(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         r = repr(cfg)
         assert "..." in r

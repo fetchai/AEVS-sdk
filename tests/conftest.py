@@ -7,6 +7,9 @@ TEST_API_KEY = "aevs_sk_testkey_" + "ab" * 32
 TEST_KEY_ID = "testkey"
 TEST_KEY_SECRET = bytes.fromhex("ab" * 32)
 
+# A valid v4 UUID for agent_id testing
+TEST_AGENT_ID = "12345678-1234-4234-8234-123456789abc"
+
 # Single source of truth for the mock backend.
 #  - tests pass TEST_BASE_URL to `configure(base_url=...)`
 #  - respx routes use TEST_RECEIPTS_URL so the mock and the client agree

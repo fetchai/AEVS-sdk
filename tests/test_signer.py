@@ -5,14 +5,14 @@ from aevs.config import configure, get_config
 from aevs.core.signer import sign_request
 from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import verify_hmac
-from tests.conftest import TEST_API_KEY
+from tests.conftest import TEST_AGENT_ID, TEST_API_KEY
 
 FIXED_TS = datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc)
 PAYLOAD = b'{"seq":1,"tool_name":"search"}'
 
 
 def _sign(**kwargs) -> dict[str, str]:
-    configure(api_key=TEST_API_KEY)
+    configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
     return sign_request(get_config(), PAYLOAD, timestamp=FIXED_TS, **kwargs)
 
 
@@ -38,7 +38,7 @@ class TestSignRequest:
         int(sig, 16)
 
     def test_signature_verifiable(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         headers = sign_request(cfg, PAYLOAD, timestamp=FIXED_TS)
 
@@ -58,14 +58,14 @@ class TestSignRequest:
         assert h1 == h2
 
     def test_different_payload_different_signature(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         s1 = sign_request(cfg, b"payload-a", timestamp=FIXED_TS)
         s2 = sign_request(cfg, b"payload-b", timestamp=FIXED_TS)
         assert s1["X-AEVS-Signature"] != s2["X-AEVS-Signature"]
 
     def test_different_timestamp_different_signature(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         ts2 = datetime(2026, 3, 30, 13, 0, 0, tzinfo=timezone.utc)
         s1 = sign_request(cfg, PAYLOAD, timestamp=FIXED_TS)
@@ -73,14 +73,14 @@ class TestSignRequest:
         assert s1["X-AEVS-Signature"] != s2["X-AEVS-Signature"]
 
     def test_auto_timestamp(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         headers = sign_request(get_config(), PAYLOAD)
         # Should have a valid ISO timestamp (no assertion on exact value)
         datetime.fromisoformat(headers["X-AEVS-Timestamp"])
 
     def test_pre_derived_key_matches(self):
         """Passing a pre-derived signing_key produces the same signature."""
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         pre_key = derive_key(cfg.key_secret, salt="aevs-request-v1")
 

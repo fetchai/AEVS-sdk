@@ -21,6 +21,7 @@ import aevs._api as api
 from aevs.config import configure, get_config, reset_config
 from aevs.exceptions import AEVSConfigError
 from tests.conftest import (
+    TEST_AGENT_ID,
     TEST_API_KEY,
     TEST_BASE_URL,
     TEST_KEY_SECRET,
@@ -114,7 +115,7 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_client_construction_failure_propagates(self, tmp_path):
         """AEVSClient() raises during enable() — error must propagate."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         with patch("aevs.core.client.AEVSClient.__init__",
                     side_effect=RuntimeError("conn fail")):
             with pytest.raises(RuntimeError, match="conn fail"):
@@ -124,7 +125,7 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_buffer_failure_closes_client(self, tmp_path):
         """If LocalBuffer() fails after client is created, client must be closed."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         with patch("aevs.core.buffer.LocalBuffer.__init__",
                     side_effect=OSError("disk full")):
             with pytest.raises(OSError, match="disk full"):
@@ -134,7 +135,7 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_buffer_failure_client_close_also_fails(self, tmp_path):
         """If both buffer creation AND client.close() fail, original error wins."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         broken_client = MagicMock()
         broken_client.close.side_effect = RuntimeError("close also broke")
         with patch("aevs.core.client.AEVSClient", return_value=broken_client), \
@@ -144,12 +145,12 @@ class TestEnableFailurePaths:
                 api.enable()
 
     def test_unknown_framework_raises(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         with pytest.raises(AEVSConfigError, match="Unknown framework"):
             api.enable(frameworks=["nonexistent_framework"])
 
     def test_unavailable_explicit_framework_raises(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         with patch("aevs.adapters.langchain.LangChainAdapter.is_available",
                     return_value=False):
             with pytest.raises(AEVSConfigError, match="not installed"):
@@ -157,7 +158,7 @@ class TestEnableFailurePaths:
 
     def test_adapter_import_failure_raises(self, tmp_path):
         """If importlib.import_module fails for an adapter, AEVSConfigError."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
 
         real_import = __import__("importlib").import_module
 
@@ -172,7 +173,7 @@ class TestEnableFailurePaths:
 
     def test_second_adapter_failure_unpatches_first_and_closes(self, tmp_path):
         """If second adapter fails, first is unpatched, client+buffer closed."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         with patch("aevs.adapters.mcp.MCPAdapter.is_available",
                     side_effect=RuntimeError("mcp boom")):
             with pytest.raises(RuntimeError, match="mcp boom"):
@@ -185,7 +186,7 @@ class TestEnableFailurePaths:
         Scenario: langchain adapter patches OK, mcp adapter explodes,
         then during cleanup unpatch+close+close all throw.
         """
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
 
         from aevs.adapters.langchain import LangChainAdapter
         original_patch = LangChainAdapter.patch
@@ -221,6 +222,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -233,6 +235,7 @@ class TestEnableFailurePaths:
         wrong_key = "aevs_sk_testkey_" + wrong_key_hex
         configure(
             api_key=wrong_key,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             max_buffer_records=444,
             base_url=TEST_BASE_URL,
@@ -254,6 +257,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -265,6 +269,7 @@ class TestEnableFailurePaths:
         wrong_key_hex = "cd" * 32
         configure(
             api_key="aevs_sk_testkey_" + wrong_key_hex,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -289,6 +294,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -300,6 +306,7 @@ class TestEnableFailurePaths:
         wrong_key_hex = "cd" * 32
         configure(
             api_key="aevs_sk_testkey_" + wrong_key_hex,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -334,6 +341,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(buffer_path),
             base_url=TEST_BASE_URL,
         )
@@ -390,6 +398,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -465,6 +474,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("down"))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -534,6 +544,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -549,6 +560,7 @@ class TestChainResumeAfterDrain:
         rotated_secret = bytes.fromhex("cd" * 32)
         configure(
             api_key=rotated_key,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -699,7 +711,7 @@ class TestHandleToolCallSync:
 
     def test_builder_crash_never_propagates(self, tmp_path):
         """design rule #1: handler must NEVER raise."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         api._enabled = True
         api._receipt_builder = MagicMock()
         api._receipt_builder.build.side_effect = RuntimeError("build exploded")
@@ -711,7 +723,7 @@ class TestHandleToolCallSync:
         api._enabled = False
 
     def test_records_reference_id(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         from aevs.config import get_config
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder
@@ -779,7 +791,7 @@ class TestHandleToolCallAsync:
 
     @pytest.mark.asyncio
     async def test_builder_crash_never_propagates(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         api._enabled = True
         api._receipt_builder = MagicMock()
         api._receipt_builder.build.side_effect = RuntimeError("async build boom")
@@ -793,7 +805,7 @@ class TestHandleToolCallAsync:
 
     @pytest.mark.asyncio
     async def test_records_reference_and_stores_receipt(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path=str(tmp_path / "buf.db"))
         from aevs.config import get_config
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder

@@ -4,12 +4,12 @@ import respx
 
 from aevs.config import configure, get_config
 from aevs.core.client import AEVSClient
-from tests.conftest import TEST_API_KEY
+from tests.conftest import TEST_AGENT_ID, TEST_API_KEY
 
 
 @pytest.fixture
 def client() -> AEVSClient:
-    configure(api_key=TEST_API_KEY, base_url="https://mock.aevs.io/v1")
+    configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, base_url="https://mock.aevs.io/v1")
     return AEVSClient(get_config())
 
 
