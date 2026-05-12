@@ -54,7 +54,7 @@ Three runnable scripts live in [`examples/`](https://github.com/fetchai/AEVS-sdk
 | [`02_openai_agent.py`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/02_openai_agent.py) | A LangChain agent with OpenAI; AEVS records each tool call the model picks | `OPENAI_API_KEY` + AEVS credentials |
 | [`03_asi_agent.py`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/03_asi_agent.py) | The same agent rewired to Fetch.ai's [ASI:One](https://asi1.ai) — proves AEVS is provider-agnostic | `ASI_API_KEY` + AEVS credentials |
 
-See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/README.md) for the recommended order and setup.
+See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/README.md) for the recommended order and setup instructions (Poetry or pip).
 
 ## API
 
@@ -251,6 +251,13 @@ aevs-sdk/
 │       ├── chain.py       Hash chain helpers
 │       ├── hkdf.py        HKDF key derivation
 │       └── hmac_auth.py   HMAC authentication
+├── examples/              Runnable example scripts (own Poetry project)
+│   ├── pyproject.toml     Example dependencies
+│   ├── poetry.lock        Pinned example dependencies
+│   ├── .env.example       Credential template
+│   ├── 01_local_quickstart.py
+│   ├── 02_openai_agent.py
+│   └── 03_asi_agent.py
 ├── tests/                 Test suite
 ├── pyproject.toml         Poetry packaging + tool config
 ├── poetry.lock
