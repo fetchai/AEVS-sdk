@@ -127,3 +127,82 @@ class TestLangChainAdapter:
         self.adapter.patch(self._sync_handler, broken_async_handler)
         result = await add_numbers.ainvoke({"a": 3, "b": 4})
         assert result == 7
+
+    def test_inputs_unwrapped_from_tool_call_envelope(self):
+        """When the agent loop passes a ToolCall envelope (as
+        langchain.agents.create_agent / LangGraph ReAct does), the captured
+        ``inputs`` must be the raw args dict — not the full envelope. Matches
+        the MCP adapter's convention so receipts have a uniform shape across
+        frameworks. The envelope's id/name are still recorded separately as
+        tool_call_id and tool_name.
+        """
+        self.adapter.patch(self._sync_handler, self._async_handler)
+        tool_call = {
+            "id": "call_3e070c95eeba4854899ec7c8",
+            "args": {"a": 6, "b": 7},
+            "name": "add_numbers",
+            "type": "tool_call",
+        }
+
+        # LangChain returns a ToolMessage when invoked with a tool_call
+        # envelope (so the agent loop can feed it into the next LLM turn).
+        result = add_numbers.invoke(tool_call)
+        assert getattr(result, "content", None) == "13"
+        assert getattr(result, "tool_call_id", None) == "call_3e070c95eeba4854899ec7c8"
+
+        assert len(self.calls) == 1
+        call = self.calls[0]
+        assert call["inputs"] == {"a": 6, "b": 7}, (
+            "tool_call envelope must be unwrapped to its args dict"
+        )
+        assert call["tool_call_id"] == "call_3e070c95eeba4854899ec7c8"
+        assert call["tool_name"] == "add_numbers"
+        # Sanity: the tool actually executed (output carries the real value
+        # somewhere — either raw or inside a ToolMessage wrapper).
+        out = call["output"]
+        assert out == 13 or getattr(out, "content", None) == "13"
+
+    def test_inputs_passthrough_for_plain_args_dict(self):
+        """A direct invoke with a plain args dict (not wrapped in a
+        ToolCall envelope) must be recorded as-is.
+        """
+        self.adapter.patch(self._sync_handler, self._async_handler)
+        result = add_numbers.invoke({"a": 2, "b": 3})
+        assert result == 5
+
+        assert len(self.calls) == 1
+        assert self.calls[0]["inputs"] == {"a": 2, "b": 3}
+        assert self.calls[0]["tool_call_id"] is None
+
+    def test_inputs_passthrough_for_envelope_lookalike_without_type(self):
+        """A dict that happens to have an ``args`` key but no
+        ``type='tool_call'`` marker is NOT a ToolCall envelope and must be
+        passed through unchanged. This guards against accidentally
+        unwrapping a tool whose real argument *is* literally named ``args``.
+        """
+        from aevs.adapters.langchain import _normalize_inputs
+
+        looks_like_envelope = {"args": {"x": 1}, "id": "abc"}
+        assert _normalize_inputs(looks_like_envelope) is looks_like_envelope
+
+    @pytest.mark.asyncio
+    async def test_inputs_unwrapped_from_tool_call_envelope_async(self):
+        """Async path mirrors the sync unwrap behaviour."""
+        self.adapter.patch(self._sync_handler, self._async_handler)
+        tool_call = {
+            "id": "call_async_xyz",
+            "args": {"a": 4, "b": 5},
+            "name": "add_numbers",
+            "type": "tool_call",
+        }
+        result = await add_numbers.ainvoke(tool_call)
+        assert getattr(result, "content", None) == "9"
+
+        # StructuredTool.ainvoke delegates to the sync path (see
+        # test_ainvoke_intercepted_via_sync_path), so the call lands on
+        # self.calls — not self.async_calls.
+        assert len(self.calls) == 1
+        assert self.calls[0]["inputs"] == {"a": 4, "b": 5}
+        assert self.calls[0]["tool_call_id"] == "call_async_xyz"
+        out = self.calls[0]["output"]
+        assert out == 9 or getattr(out, "content", None) == "9"
