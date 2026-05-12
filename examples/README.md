@@ -24,35 +24,48 @@ what you're trying to learn.
 
 ## Setup
 
-Install the LangChain extra plus `python-dotenv` (used to read `.env`):
+The `examples/` folder is a self-contained [Poetry](https://python-poetry.org/) project.
+Install all dependencies in one step:
 
 ```bash
-pip install 'aevs[langchain]' python-dotenv
-```
-
-Examples 2 and 3 additionally need a LangChain agent runtime:
-
-```bash
-pip install langchain langchain-openai
+cd examples
+poetry install
 ```
 
 Copy the env template and fill in your keys:
 
 ```bash
-cp examples/.env.example examples/.env
-# then edit examples/.env in your editor
+cp .env.example .env
+# then edit .env in your editor
 ```
 
 The `.env` lives next to the example scripts and is auto-loaded by
 `python-dotenv` when each example starts.
 
-Then run any of:
+Then run any example through Poetry:
+
+```bash
+poetry run python 01_local_quickstart.py
+poetry run python 02_openai_agent.py
+poetry run python 03_asi_agent.py
+```
+
+<details>
+<summary>Using pip instead of Poetry</summary>
+
+```bash
+pip install 'aevs[langchain]' python-dotenv langchain langchain-openai
+```
+
+Then run from the repo root:
 
 ```bash
 python examples/01_local_quickstart.py
 python examples/02_openai_agent.py
 python examples/03_asi_agent.py
 ```
+
+</details>
 
 ## Verifying a receipt
 
