@@ -46,15 +46,15 @@ just not recorded. Get your credentials at https://aevs.fetch.ai.
 
 ## Examples
 
-Three runnable scripts live in [`examples/`](examples/):
+Three runnable scripts live in [`examples/`](https://github.com/fetchai/AEVS-sdk/tree/main/examples):
 
 | Script | Teaches | Needs |
 |--------|---------|-------|
-| [`01_local_quickstart.py`](examples/01_local_quickstart.py) | The minimal SDK loop — invoke a tool, see AEVS capture it | `AEVS_API_KEY`, `AEVS_AGENT_ID`. No LLM. |
-| [`02_openai_agent.py`](examples/02_openai_agent.py) | A LangChain agent with OpenAI; AEVS records each tool call the model picks | `OPENAI_API_KEY` + AEVS credentials |
-| [`03_asi_agent.py`](examples/03_asi_agent.py) | The same agent rewired to Fetch.ai's [ASI:One](https://asi1.ai) — proves AEVS is provider-agnostic | `ASI_API_KEY` + AEVS credentials |
+| [`01_local_quickstart.py`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/01_local_quickstart.py) | The minimal SDK loop — invoke a tool, see AEVS capture it | `AEVS_API_KEY`, `AEVS_AGENT_ID`. No LLM. |
+| [`02_openai_agent.py`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/02_openai_agent.py) | A LangChain agent with OpenAI; AEVS records each tool call the model picks | `OPENAI_API_KEY` + AEVS credentials |
+| [`03_asi_agent.py`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/03_asi_agent.py) | The same agent rewired to Fetch.ai's [ASI:One](https://asi1.ai) — proves AEVS is provider-agnostic | `ASI_API_KEY` + AEVS credentials |
 
-See [`examples/README.md`](examples/README.md) for the recommended order and setup.
+See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/README.md) for the recommended order and setup.
 
 ## API
 
@@ -197,13 +197,13 @@ poetry run mypy src/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — branch
+See [CONTRIBUTING.md](https://github.com/fetchai/AEVS-sdk/blob/main/CONTRIBUTING.md) for the full guide — branch
 naming, Conventional Commits, the PR checklist, and release flow.
 
 ## Reporting Security Issues
 
 Please **do not** open a public GitHub issue for security problems.
-See [SECURITY.md](SECURITY.md) for the disclosure process.
+See [SECURITY.md](https://github.com/fetchai/AEVS-sdk/blob/main/SECURITY.md) for the disclosure process.
 
 ## Architecture
 

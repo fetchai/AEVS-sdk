@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aevs"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent Execution Verification System — transparent audit SDK for AI agents"
 readme = "README.md"
 license = "Apache-2.0"

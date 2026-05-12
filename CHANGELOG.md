@@ -6,15 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.2.0] - 2026-05-12
+
 ### Changed
-- **License changed from MIT to Apache License 2.0.** Apache 2.0 retains the same permissive distribution terms as MIT while adding an explicit patent grant from contributors and a clearer trademark clause — both important for downstream commercial use. The package metadata (`pyproject.toml` `license` field and the PyPI classifier) was updated to match.
+- License changed from MIT to Apache License 2.0; `pyproject.toml` `license` field and PyPI classifier updated to match.
+- **Breaking:** `agent_id` is now a required string on `aevs.configure()` (or via `AEVS_AGENT_ID`). Missing credentials log a warning and the SDK enters no-op mode instead of crashing.
+- `agent_id` is validated as a canonical UUID, with diagnostics for dashless hex, prefixed identifiers, and non-canonical forms.
+- **Breaking:** LangChain receipts now store the tool's argument dict in `inputs` instead of the full `ToolCall` envelope. `id` / `name` / `type` are still captured as `tool_call_id` / `tool_name` / `framework`.
 
 ### Added
-- **Developer Certificate of Origin (DCO) v1.1.** Inbound contributions must now be signed off (`git commit -s`) to certify that the contributor has the right to submit the change under Apache 2.0. The full DCO text lives at [`DCO`](DCO) in the repo root, the workflow is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md), and a `DCO` GitHub Actions check enforces a valid `Signed-off-by` trailer on every non-merge commit of every pull request.
-- **`examples/` directory with three runnable walkthroughs.** `01_local_quickstart.py` is the minimal `configure → enable → invoke → reference-id` loop (no API keys, no LLM, ~30 lines). `02_openai_agent.py` adds a real LangChain agent driven by OpenAI and shows the per-call `aevs.get_reference_id(tool_call_id)` lookup pattern. `03_asi_agent.py` swaps the model to Fetch.ai's ASI:One via its OpenAI-compatible endpoint to demonstrate that AEVS is provider-agnostic, and uses the bulk `aevs.get_reference_ids()` lookup. See [`examples/README.md`](examples/README.md).
+- Developer Certificate of Origin (DCO) v1.1: contributions require `git commit -s`, enforced by a GitHub Actions check. See [`DCO`](DCO) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- `examples/` directory with three runnable walkthroughs: local quickstart, OpenAI + LangChain, and Fetch.ai ASI:One. See [`examples/README.md`](examples/README.md).
+- `tool_call_id` field on `get_reference_ids()` entries; `get_reference_id(lookup_id)` now resolves by either `run_id` or `tool_call_id`.
 
 ### Fixed
-- **Chain-state corruption after clean drain + crash.** `enable()`'s clean-drain branch now deletes the persisted `chain_state` row before minting a fresh `session_id`, so a process crash before the new session's first store can no longer mis-route the next `enable()` into mid-session recovery against the wrong session — which would have spliced two unrelated sessions into one chain shipped to the backend. New `LocalBuffer.reset_chain_state()` (DELETE semantics, not UPDATE-to-NULL) keeps `chain_state()` reporting `None` after reset so the canonical fresh-DB recovery path fires. (review-findings.md issue #1)
+- `enable()` clean-drain branch now deletes the persisted `chain_state` row before minting a new `session_id`, so a crash between drain and first store no longer mis-routes the next session into mid-session recovery.
+
+### Documentation
+- README session-lifecycle section documents crash-recovery session reuse and lists the two INFO log lines (`mid-session crash recovery — resuming session_id=…` / `clean drain detected — minting new session …`) that signal which path fired.
 
 ## [0.1.0] - 2026-05-07
 
@@ -35,5 +46,6 @@ Initial public release.
 - Default `base_url` is HTTPS (`https://api.aevs.fetch.ai/v1`); the SDK warns when a non-loopback `http://` URL is configured.
 - HTTP error response bodies are truncated in WARNING logs; the full slice is kept at DEBUG only.
 
-[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/fetchai/AEVS-sdk/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fetchai/AEVS-sdk/releases/tag/v0.1.0

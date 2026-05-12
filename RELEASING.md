@@ -69,9 +69,11 @@ Edit `CHANGELOG.md`:
 
 ### 4. Commit and tag
 
+The project is licensed under **Apache 2.0** and requires a DCO sign-off on every commit (see [CONTRIBUTING.md](CONTRIBUTING.md#developer-certificate-of-origin)). Include `-s` so the release commit carries a valid `Signed-off-by` trailer — the DCO CI check runs on every push to `main`, including release commits.
+
 ```bash
 git add pyproject.toml CHANGELOG.md
-git commit -m "chore(release): X.Y.Z"
+git commit -s -m "chore(release): X.Y.Z"
 git tag -a vX.Y.Z -m "Release X.Y.Z"
 git push --follow-tags
 ```
