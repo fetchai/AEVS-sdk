@@ -1,0 +1,81 @@
+name: DCO
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dco-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Verify Signed-off-by on every commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head with full history
+        uses: actions/checkout@v4
+        with:
+          # Need full history so we can `git log base..head` over arbitrary PR depth.
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check DCO sign-off on every non-merge commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # `actions/checkout` with fetch-depth: 0 already pulled full history for the PR
+          # head, which on GitHub-hosted PRs normally includes the base branch tip. Make
+          # absolutely sure though — older PRs whose base has moved on can fail otherwise.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+          fi
+
+          # SPDX-style DCO trailer: `Signed-off-by: <name> <email>`.
+          # Anchored to the start of a line, requires a plausible email.
+          trailer_re='^Signed-off-by: [^<]+ <[^@<>[:space:]]+@[^@<>[:space:]]+\.[^@<>[:space:]]+>[[:space:]]*$'
+
+          missing=0
+          # `--no-merges` is intentional: merge commits introduced by GitHub during
+          # rebases or squash-merges carry no original authorship and are excluded by
+          # the DCO conventions used by the Linux kernel, Kubernetes, etc.
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            author="$(git log -1 --format='%an <%ae>' "$sha")"
+            subject="$(git log -1 --format='%s' "$sha")"
+            body="$(git log -1 --format='%B' "$sha")"
+
+            if ! printf '%s\n' "$body" | grep -Eq "$trailer_re"; then
+              echo "::error::Commit $sha by $author is missing a 'Signed-off-by' trailer."
+              echo "          Subject: $subject"
+              missing=$((missing + 1))
+              continue
+            fi
+
+            # Trailer present — require at least one sign-off whose email matches the
+            # commit author's email, to prevent rubber-stamping someone else's work.
+            author_email="$(git log -1 --format='%ae' "$sha")"
+            if ! printf '%s\n' "$body" | grep -Eq "^Signed-off-by: [^<]+ <${author_email}>[[:space:]]*$"; then
+              echo "::error::Commit $sha is signed off, but no 'Signed-off-by' matches the author email <${author_email}>."
+              echo "          Subject: $subject"
+              missing=$((missing + 1))
+            fi
+          done < <(git log --no-merges --format='%H' "$BASE_SHA..$HEAD_SHA")
+
+          if [ "$missing" -gt 0 ]; then
+            echo ""
+            echo "Found $missing commit(s) without a valid DCO sign-off."
+            echo "Fix locally with:  git rebase --signoff $BASE_SHA && git push --force-with-lease"
+            echo "See CONTRIBUTING.md (Developer Certificate of Origin section) for details."
+            exit 1
+          fi
+
+          echo "All commits carry a valid Signed-off-by trailer."

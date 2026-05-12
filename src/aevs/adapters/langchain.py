@@ -45,6 +45,25 @@ def _inject_capture(config: dict[str, Any], capture: Any) -> None:
         cbs.add_handler(capture)
 
 
+def _normalize_inputs(input: Any) -> Any:
+    """Strip the LangChain tool_call envelope so receipts record only the
+    tool's argument dict — matching the MCP adapter's convention.
+
+    LangChain's ``BaseTool.invoke`` accepts either:
+      * a raw arguments dict / string (passed straight through), or
+      * a ``ToolCall`` envelope ``{"id": str, "name": str, "args": dict,
+        "type": "tool_call"}`` (what ``langchain.agents.create_agent`` and
+        every LangGraph ReAct loop pass).
+
+    We unwrap the envelope so the AEVS receipt's ``inputs`` field is always
+    just the args — ``id``/``name``/``type`` are already captured separately
+    as ``tool_call_id`` / ``tool_name`` / ``framework``.
+    """
+    if isinstance(input, dict) and input.get("type") == "tool_call" and "args" in input:
+        return input["args"]
+    return input
+
+
 class LangChainAdapter(BaseAdapter):
     """Patches langchain_core.tools.BaseTool.invoke / ainvoke."""
 
@@ -115,6 +134,7 @@ class LangChainAdapter(BaseAdapter):
             config = ensure_config(config)
             parent_run_id = _extract_parent_run_id(config)
             tool_call_id = input.get("id") if isinstance(input, dict) else None
+            normalized_inputs = _normalize_inputs(input)
             capture = _RunIdCapture()
             _inject_capture(config, capture)
 
@@ -138,7 +158,7 @@ class LangChainAdapter(BaseAdapter):
             try:
                 on_tool_call(
                     tool_name=tool_self.name,
-                    inputs=input,
+                    inputs=normalized_inputs,
                     output=output,
                     status=status,
                     error=error,
@@ -168,6 +188,7 @@ class LangChainAdapter(BaseAdapter):
             config = ensure_config(config)
             parent_run_id = _extract_parent_run_id(config)
             tool_call_id = input.get("id") if isinstance(input, dict) else None
+            normalized_inputs = _normalize_inputs(input)
             capture = _RunIdCapture()
             _inject_capture(config, capture)
 
@@ -191,7 +212,7 @@ class LangChainAdapter(BaseAdapter):
             try:
                 await on_tool_call_async(
                     tool_name=tool_self.name,
-                    inputs=input,
+                    inputs=normalized_inputs,
                     output=output,
                     status=status,
                     error=error,

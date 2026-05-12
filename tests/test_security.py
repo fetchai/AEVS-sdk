@@ -31,6 +31,7 @@ from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import compute_hmac, verify_hmac
 from aevs.exceptions import AEVSConfigError
 from tests.conftest import (
+    TEST_AGENT_ID,
     TEST_API_KEY,
     TEST_BASE_URL,
     TEST_KEY_SECRET,
@@ -50,6 +51,7 @@ _TEST_SESSION_ID = "00000000-0000-4000-8000-000000000002"
 
 
 def _make_builder(*, session_id: str = _TEST_SESSION_ID, **kwargs) -> ReceiptBuilder:
+    kwargs.setdefault("agent_id", TEST_AGENT_ID)
     configure(api_key=TEST_API_KEY, **kwargs)
     return ReceiptBuilder(get_config(), session_id=session_id)
 
@@ -424,22 +426,22 @@ class TestSqlInjection:
 
 class TestConfigSecurity:
     def test_api_key_not_in_repr(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         assert TEST_API_KEY not in repr(cfg)
 
     def test_key_secret_hex_not_in_repr(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         assert TEST_KEY_SECRET.hex() not in repr(cfg)
 
     def test_api_key_not_in_str(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         assert TEST_API_KEY not in str(cfg)
 
     def test_config_immutable(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         with pytest.raises(AttributeError):
             cfg.key_secret = b"hacked"  # type: ignore[misc]
@@ -469,7 +471,7 @@ class TestConfigSecurity:
 
 class TestSignatureSecurity:
     def test_different_payloads_different_signatures(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         ts = datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc)
         s1 = sign_request(cfg, b'{"seq":1}', timestamp=ts)
@@ -477,7 +479,7 @@ class TestSignatureSecurity:
         assert s1["X-AEVS-Signature"] != s2["X-AEVS-Signature"]
 
     def test_same_payload_different_timestamp_different_sig(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         ts1 = datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc)
         ts2 = datetime(2026, 3, 30, 12, 0, 1, tzinfo=timezone.utc)
@@ -488,7 +490,7 @@ class TestSignatureSecurity:
     def test_replayed_sig_with_altered_timestamp_fails(self):
         import hashlib
 
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         payload = b'{"seq":1}'
         ts = datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc)
@@ -506,7 +508,7 @@ class TestSignatureSecurity:
         )
 
     def test_wrong_key_cannot_forge_signature(self):
-        configure(api_key=TEST_API_KEY)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         cfg = get_config()
         ts = datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -543,6 +545,7 @@ def _sec_cleanup(tmp_path):
 
 def _sec_configure(tmp_path, **kwargs):
     kwargs.setdefault("base_url", TEST_BASE_URL)
+    kwargs.setdefault("agent_id", TEST_AGENT_ID)
     aevs.configure(
         api_key=TEST_API_KEY,
         buffer_path=str(tmp_path / "sec_buffer.db"),

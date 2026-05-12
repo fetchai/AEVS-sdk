@@ -18,7 +18,7 @@ from langchain_core.tools import tool
 import aevs
 import aevs._api as _api_mod
 from aevs.config import reset_config
-from tests.conftest import TEST_API_KEY, TEST_BASE_URL, TEST_RECEIPTS_URL
+from tests.conftest import TEST_AGENT_ID, TEST_API_KEY, TEST_BASE_URL, TEST_RECEIPTS_URL
 
 
 @tool
@@ -44,6 +44,7 @@ def _cleanup(tmp_path):
 
 def _configure(tmp_path, **kwargs):
     kwargs.setdefault("base_url", TEST_BASE_URL)
+    kwargs.setdefault("agent_id", TEST_AGENT_ID)
     aevs.configure(
         api_key=TEST_API_KEY,
         buffer_path=str(tmp_path / "buffer.db"),

@@ -21,6 +21,7 @@ import aevs._api as api
 from aevs.config import configure, get_config, reset_config
 from aevs.exceptions import AEVSConfigError
 from tests.conftest import (
+    TEST_AGENT_ID,
     TEST_API_KEY,
     TEST_BASE_URL,
     TEST_KEY_SECRET,
@@ -114,7 +115,11 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_client_construction_failure_propagates(self, tmp_path):
         """AEVSClient() raises during enable() — error must propagate."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         with patch("aevs.core.client.AEVSClient.__init__",
                     side_effect=RuntimeError("conn fail")):
             with pytest.raises(RuntimeError, match="conn fail"):
@@ -124,7 +129,11 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_buffer_failure_closes_client(self, tmp_path):
         """If LocalBuffer() fails after client is created, client must be closed."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         with patch("aevs.core.buffer.LocalBuffer.__init__",
                     side_effect=OSError("disk full")):
             with pytest.raises(OSError, match="disk full"):
@@ -134,7 +143,11 @@ class TestEnableFailurePaths:
     @respx.mock
     def test_buffer_failure_client_close_also_fails(self, tmp_path):
         """If both buffer creation AND client.close() fail, original error wins."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         broken_client = MagicMock()
         broken_client.close.side_effect = RuntimeError("close also broke")
         with patch("aevs.core.client.AEVSClient", return_value=broken_client), \
@@ -144,12 +157,20 @@ class TestEnableFailurePaths:
                 api.enable()
 
     def test_unknown_framework_raises(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         with pytest.raises(AEVSConfigError, match="Unknown framework"):
             api.enable(frameworks=["nonexistent_framework"])
 
     def test_unavailable_explicit_framework_raises(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         with patch("aevs.adapters.langchain.LangChainAdapter.is_available",
                     return_value=False):
             with pytest.raises(AEVSConfigError, match="not installed"):
@@ -157,7 +178,11 @@ class TestEnableFailurePaths:
 
     def test_adapter_import_failure_raises(self, tmp_path):
         """If importlib.import_module fails for an adapter, AEVSConfigError."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
 
         real_import = __import__("importlib").import_module
 
@@ -172,7 +197,11 @@ class TestEnableFailurePaths:
 
     def test_second_adapter_failure_unpatches_first_and_closes(self, tmp_path):
         """If second adapter fails, first is unpatched, client+buffer closed."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         with patch("aevs.adapters.mcp.MCPAdapter.is_available",
                     side_effect=RuntimeError("mcp boom")):
             with pytest.raises(RuntimeError, match="mcp boom"):
@@ -185,7 +214,11 @@ class TestEnableFailurePaths:
         Scenario: langchain adapter patches OK, mcp adapter explodes,
         then during cleanup unpatch+close+close all throw.
         """
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
 
         from aevs.adapters.langchain import LangChainAdapter
         original_patch = LangChainAdapter.patch
@@ -221,6 +254,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -233,6 +267,7 @@ class TestEnableFailurePaths:
         wrong_key = "aevs_sk_testkey_" + wrong_key_hex
         configure(
             api_key=wrong_key,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             max_buffer_records=444,
             base_url=TEST_BASE_URL,
@@ -254,6 +289,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -265,6 +301,7 @@ class TestEnableFailurePaths:
         wrong_key_hex = "cd" * 32
         configure(
             api_key="aevs_sk_testkey_" + wrong_key_hex,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -289,6 +326,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -300,6 +338,7 @@ class TestEnableFailurePaths:
         wrong_key_hex = "cd" * 32
         configure(
             api_key="aevs_sk_testkey_" + wrong_key_hex,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -334,6 +373,7 @@ class TestEnableFailurePaths:
 
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(buffer_path),
             base_url=TEST_BASE_URL,
         )
@@ -390,6 +430,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -465,6 +506,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("down"))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -521,6 +563,122 @@ class TestChainResumeAfterDrain:
             api.disable()
 
     @respx.mock
+    def test_clean_drain_then_crash_does_not_resurrect_prior_session(
+        self, tmp_path
+    ):
+        """Regression for review-findings.md issue #1.
+
+        Trace: session A drains cleanly to seq=5; session B starts and
+        reaches only seq=3 before crashing.  The next ``enable()`` must
+        recover under session B, not splice session A's identity onto
+        the un-flushed receipts.
+        """
+        from aevs.core.buffer import LocalBuffer
+
+        # Cycle 1: full clean drain under session A.
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+            base_url=TEST_BASE_URL,
+        )
+
+        # Session A must reach a last_seq strictly greater than the
+        # count session B will reach before its crash, otherwise the
+        # UPSERT guard fires for session B's later writes and the bug
+        # self-heals.
+        api.enable(frameworks=[])
+        session_a = api.get_session_id()
+        assert session_a is not None
+        try:
+            for _ in range(5):
+                self._trigger_one_call()
+            api.flush()
+        finally:
+            api.disable()
+
+        # Pre-condition for the bug: the stale row exists on disk.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 0
+            persisted = buf.chain_state()
+            assert persisted is not None
+            persisted_seq, _, persisted_session = persisted
+            assert persisted_session == session_a
+            assert persisted_seq == 5, (
+                f"cycle 1 should have advanced chain_state to seq=5; "
+                f"got {persisted_seq}"
+            )
+        finally:
+            buf.close()
+
+        # Cycle 2: enable session B, store 3 receipts (< 5), then crash.
+        respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("crashed"))
+
+        api.enable(frameworks=[])
+        session_b = api.get_session_id()
+        assert session_b is not None
+        assert session_b != session_a
+        for _ in range(3):
+            self._trigger_one_call()
+        # Bypass disable() to drop runtime state without a final flush.
+        api._receipt_builder = None
+        api._client = None
+        api._buffer = None
+        api._drainer = None
+        api._adapters.clear()
+        api._enabled = False
+        api._session_id = None
+
+        # Core invariant: chain_state must reflect session B, never A.
+        buf = LocalBuffer(tmp_path / "buf.db", TEST_KEY_SECRET)
+        try:
+            assert buf.pending_count() == 3
+            persisted = buf.chain_state()
+            assert persisted is not None
+            _, _, persisted_session = persisted
+            assert persisted_session == session_b, (
+                f"clean-drain reset failed — chain_state still reports "
+                f"the prior session.  Got persisted_session={persisted_session!r}, "
+                f"expected {session_b!r} (session A was {session_a!r}).  "
+                f"A crash now would splice the two sessions into one "
+                f"chain shipped to the backend (issue #1)."
+            )
+        finally:
+            buf.close()
+
+        # Cycle 3: recover, flush, verify the wire.
+        respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
+
+        api.enable(frameworks=[])
+        try:
+            self._trigger_one_call()
+            api.flush()
+
+            successful = [
+                json.loads(c.request.content)
+                for c in respx.calls
+                if c.has_response and c.response.status_code == 200
+            ]
+            # Cycle 1's POSTs also returned 200, so filter by session.
+            post_crash = [r for r in successful if r["session_id"] != session_a]
+            assert len(post_crash) == 4, (
+                f"expected 4 post-crash POSTs (3 buffered + 1 new); got {len(post_crash)}"
+            )
+
+            session_ids = {r["session_id"] for r in post_crash}
+            assert session_ids == {session_b}, (
+                f"backend received receipts under the wrong session — "
+                f"got {session_ids}, expected {{{session_b!r}}}"
+            )
+
+            seqs = sorted(r["seq"] for r in post_crash)
+            assert seqs == [1, 2, 3, 4], f"sequence not contiguous: {seqs}"
+        finally:
+            api.disable()
+
+    @respx.mock
     def test_post_drain_resume_survives_rotated_key_by_starting_fresh(
         self, tmp_path
     ):
@@ -534,6 +692,7 @@ class TestChainResumeAfterDrain:
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -549,6 +708,7 @@ class TestChainResumeAfterDrain:
         rotated_secret = bytes.fromhex("cd" * 32)
         configure(
             api_key=rotated_key,
+            agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
             base_url=TEST_BASE_URL,
         )
@@ -699,7 +859,11 @@ class TestHandleToolCallSync:
 
     def test_builder_crash_never_propagates(self, tmp_path):
         """design rule #1: handler must NEVER raise."""
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         api._enabled = True
         api._receipt_builder = MagicMock()
         api._receipt_builder.build.side_effect = RuntimeError("build exploded")
@@ -711,7 +875,11 @@ class TestHandleToolCallSync:
         api._enabled = False
 
     def test_records_reference_id(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         from aevs.config import get_config
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder
@@ -779,7 +947,11 @@ class TestHandleToolCallAsync:
 
     @pytest.mark.asyncio
     async def test_builder_crash_never_propagates(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         api._enabled = True
         api._receipt_builder = MagicMock()
         api._receipt_builder.build.side_effect = RuntimeError("async build boom")
@@ -793,7 +965,11 @@ class TestHandleToolCallAsync:
 
     @pytest.mark.asyncio
     async def test_records_reference_and_stores_receipt(self, tmp_path):
-        configure(api_key=TEST_API_KEY, buffer_path=str(tmp_path / "buf.db"))
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            buffer_path=str(tmp_path / "buf.db"),
+        )
         from aevs.config import get_config
         from aevs.core.buffer import LocalBuffer
         from aevs.core.receipt import ReceiptBuilder
@@ -843,6 +1019,31 @@ class TestReferenceRegistry:
         assert ids[0]["reference_id"] == "ref-1"
         assert ids[1]["reference_id"] == "ref-2"
         assert len(api._reference_deque) == 2
+
+    def test_get_reference_ids_entry_shape_matches_docstring(self):
+        """Pins the dict's key set against the public docstring; if a
+        field is added or renamed, this test fails so the docstring (and
+        README example) cannot silently drift out of sync."""
+        api._reference_deque.clear()
+        api._reference_registry.clear()
+        api._record_reference(7, "search", "ref-x", "run-x", "tc-x")
+
+        ids = api.get_reference_ids()
+        assert len(ids) == 1
+        assert set(ids[0].keys()) == {
+            "seq",
+            "tool_name",
+            "reference_id",
+            "run_id",
+            "tool_call_id",
+        }
+        assert ids[0] == {
+            "seq": 7,
+            "tool_name": "search",
+            "reference_id": "ref-x",
+            "run_id": "run-x",
+            "tool_call_id": "tc-x",
+        }
 
     def test_get_reference_ids_with_clear(self):
         api._reference_deque.clear()

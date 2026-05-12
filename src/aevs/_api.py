@@ -119,7 +119,12 @@ def _warn_dual_mcp_langchain(adapters: list[Any]) -> None:
 
 
 def enable(*, frameworks: list[str] | None = None) -> None:
-    """Detect installed frameworks, patch them, and start intercepting tool calls."""
+    """Detect installed frameworks, patch them, and start intercepting tool calls.
+
+    If :func:`aevs.configure` was never called, or was called without a
+    valid API key, ``enable()`` logs a warning and returns immediately —
+    keeping the host agent running in no-op mode.
+    """
     global _receipt_builder, _client, _buffer, _drainer, _enabled, _session_id
 
     with _state_lock:
@@ -131,7 +136,11 @@ def enable(*, frameworks: list[str] | None = None) -> None:
         from aevs.core.client import AEVSClient
         from aevs.core.receipt import ReceiptBuilder
 
-        config = get_config()
+        try:
+            config = get_config()
+        except AEVSConfigError:
+            logger.warning("aevs.configure() must be called before aevs.enable().")
+            return
 
         new_client: AEVSClient | None = None
         new_buffer: LocalBuffer | None = None
@@ -262,7 +271,12 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     start_seq,
                 )
             elif pending == 0 and persisted is not None:
-                # Clean drain — explicit log, but no resume.
+                # Drop the prior session's chain_state row before the
+                # new session writes its first receipt; store()'s
+                # monotonic UPSERT guard would otherwise refuse to
+                # overwrite it and a crash here would mis-route the
+                # next enable() into recovery against the wrong session.
+                new_buffer.reset_chain_state()
                 logger.info(
                     "AEVS: clean drain detected — minting new session %s, "
                     "starting fresh chain",
@@ -638,7 +652,7 @@ def get_reference_ids(*, clear: bool = False) -> list[dict[str, str | int | None
     """Return all reference entries recorded since the last clear.
 
     Each entry is ``{"seq": int, "tool_name": str, "reference_id": str,
-    "run_id": str | None}``.
+    "run_id": str | None, "tool_call_id": str | None}``.
 
     If *clear* is True the internal registry is emptied after copying,
     which is the recommended pattern for per-request web applications.

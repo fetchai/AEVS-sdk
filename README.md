@@ -29,12 +29,32 @@ pip install aevs[mcp]         # MCP tool support
 ```python
 import aevs
 
-aevs.configure(api_key="aevs_sk_<key_id>_<hex_secret>")
+aevs.configure(
+    api_key="aevs_sk_<key_id>_<hex_secret>",
+    agent_id="<your-agent-uuid>",
+)
 aevs.enable()
 
 # Every tool call from this point is intercepted.
 # No changes to tools, agents, or LLM setup.
 ```
+
+Both `api_key` and `agent_id` can also be set via environment variables
+(`AEVS_API_KEY` / `AEVS_AGENT_ID`). If either is missing the SDK logs a
+warning and runs in no-op mode — your agent keeps working, receipts are
+just not recorded. Get your credentials at https://aevs.fetch.ai.
+
+## Examples
+
+Three runnable scripts live in [`examples/`](examples/):
+
+| Script | Teaches | Needs |
+|--------|---------|-------|
+| [`01_local_quickstart.py`](examples/01_local_quickstart.py) | The minimal SDK loop — invoke a tool, see AEVS capture it | `AEVS_API_KEY`, `AEVS_AGENT_ID`. No LLM. |
+| [`02_openai_agent.py`](examples/02_openai_agent.py) | A LangChain agent with OpenAI; AEVS records each tool call the model picks | `OPENAI_API_KEY` + AEVS credentials |
+| [`03_asi_agent.py`](examples/03_asi_agent.py) | The same agent rewired to Fetch.ai's [ASI:One](https://asi1.ai) — proves AEVS is provider-agnostic | `ASI_API_KEY` + AEVS credentials |
+
+See [`examples/README.md`](examples/README.md) for the recommended order and setup.
 
 ## API
 
@@ -52,8 +72,8 @@ aevs.is_healthy()                        # False after sustained buffer write fa
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `api_key` | *(required)* | SDK key from customer creation (`aevs_sk_<id>_<hex>`) |
-| `agent_id` | `None` | Agent UUID to tag receipts with |
+| `api_key` | **required** — falls back to `AEVS_API_KEY` env var | SDK key (`aevs_sk_<id>_<hex>`) — get one at https://aevs.fetch.ai |
+| `agent_id` | **required** — falls back to `AEVS_AGENT_ID` env var | Agent UUID from the AEVS dashboard |
 | `base_url` | `https://api.aevs.fetch.ai/v1` | AEVS backend URL |
 | `signing_timeout_ms` | `2000` | HTTP timeout for receipt submission |
 | `float_handling` | `"decimal_string"` | How floats are serialized (`decimal_string` or `raise`) |
@@ -71,7 +91,7 @@ Every intercepted tool call gets a `reference_id` (UUID v4) embedded in its rece
 ```python
 response = await agent.ainvoke({"messages": [("user", query)]})
 refs = aevs.get_reference_ids(clear=True)
-# [{"seq": 1, "tool_name": "search", "reference_id": "abc-...", "run_id": "def-..."}, ...]
+# [{"seq": 1, "tool_name": "search", "reference_id": "abc-...", "run_id": "def-...", "tool_call_id": "ghi-..."}, ...]
 ```
 
 Verify any `reference_id` via the public backend endpoint (no auth required):
@@ -90,10 +110,11 @@ aevs.clear_reference_ids()          # Drop all entries
 
 ### Session IDs
 
-Each `enable()` mints a fresh UUIDv4 **session id**. The id is stamped
-on every receipt produced in that session and participates in the hash
-chain anchor — two SDK processes that share an API key cannot fork the
-chain by construction.
+Each `enable()` mints a fresh UUIDv4 **session id** — *or recovers a
+persisted one if the previous run crashed with unflushed receipts*. The
+id is stamped on every receipt produced in that session and participates
+in the hash chain anchor; two SDK processes that share an API key cannot
+fork the chain by construction.
 
 ```python
 aevs.enable()
@@ -104,6 +125,16 @@ aevs.disable()
 aevs.get_session_id()
 # None
 ```
+
+**Crash recovery semantics.** If the previous process exited with
+un-flushed receipts (network down, OS kill, hard crash), the next
+`enable()` reuses that session's id so old and new receipts ship as one
+hash-linked chain — you'll see the same id across runs in this case, by
+design. A clean shutdown (all receipts flushed) always mints a fresh
+id. The INFO log line on each `enable()` —
+`AEVS: mid-session crash recovery — resuming session_id=...` vs.
+`AEVS: clean drain detected — minting new session ...` — tells you
+which path fired.
 
 Useful for log correlation: every receipt carries `session_id`, so
 filtering receipts by session in the AEVS backend isolates a single

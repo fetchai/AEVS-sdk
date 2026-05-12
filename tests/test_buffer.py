@@ -343,6 +343,44 @@ class TestBufferChainStateSessionId:
         assert last_seq == 1
         assert persisted_session == self._SESSION_A
 
+    def test_reset_chain_state_deletes_row_so_chain_state_is_none(
+        self, buffer: LocalBuffer
+    ):
+        """``reset_chain_state()`` must DELETE (not null) so the next
+        ``chain_state()`` reports the row absent — a NULL ``session_id``
+        is reserved for legacy rows."""
+        buffer.store(
+            1, _to_bytes(_make_receipt(1)), prev_hash="h", session_id=self._SESSION_A
+        )
+        assert buffer.chain_state() is not None
+
+        buffer.reset_chain_state()
+
+        assert buffer.chain_state() is None
+
+    def test_reset_then_store_writes_fresh_session_row(
+        self, buffer: LocalBuffer
+    ):
+        """After reset, a lower-seq write for a new session must land —
+        the UPSERT guard's monotonic check would otherwise block it."""
+        buffer.store(
+            50,
+            _to_bytes(_make_receipt(50)),
+            prev_hash="h",
+            session_id=self._SESSION_A,
+        )
+
+        buffer.reset_chain_state()
+
+        buffer.store(
+            1, _to_bytes(_make_receipt(1)), prev_hash="h", session_id=self._SESSION_B
+        )
+        state = buffer.chain_state()
+        assert state is not None
+        last_seq, _last_hash, persisted_session = state
+        assert last_seq == 1
+        assert persisted_session == self._SESSION_B
+
     def test_store_advances_session_id_with_seq(self, buffer: LocalBuffer):
         """Mid-session crash recovery's correctness depends on the most
         recent session_id (not the first one) being persisted."""

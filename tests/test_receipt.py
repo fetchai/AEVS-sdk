@@ -7,7 +7,7 @@ from aevs.core.serializer import canonical_json
 from aevs.crypto.chain import compute_chain_anchor
 from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import verify_hmac
-from tests.conftest import TEST_API_KEY
+from tests.conftest import TEST_AGENT_ID, TEST_API_KEY
 
 # Fixed session_id makes anchor-equality assertions reproducible across
 # tests; production code mints a fresh UUID per enable().
@@ -15,6 +15,7 @@ _TEST_SESSION_ID = "00000000-0000-4000-8000-000000000001"
 
 
 def _make_builder(*, session_id: str = _TEST_SESSION_ID, **kwargs) -> ReceiptBuilder:
+    kwargs.setdefault("agent_id", TEST_AGENT_ID)
     configure(api_key=TEST_API_KEY, **kwargs)
     return ReceiptBuilder(get_config(), session_id=session_id)
 
@@ -147,14 +148,15 @@ class TestReceiptBuilder:
         assert receipt["output"] is None
 
     def test_agent_id(self):
-        builder = _make_builder(agent_id="agt_test")
+        custom_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab"
+        builder = _make_builder(agent_id=custom_id)
         receipt = _build_one(builder)
-        assert receipt["agent_id"] == "agt_test"
+        assert receipt["agent_id"] == custom_id
 
-    def test_agent_id_none_by_default(self):
+    def test_agent_id_default(self):
         builder = _make_builder()
         receipt = _build_one(builder)
-        assert receipt["agent_id"] is None
+        assert receipt["agent_id"] == TEST_AGENT_ID
 
     def test_run_ids(self):
         builder = _make_builder()
