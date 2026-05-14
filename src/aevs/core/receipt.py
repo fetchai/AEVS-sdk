@@ -69,6 +69,10 @@ class ReceiptBuilder:
             float_precision=cfg.float_precision,
         )
 
+        if cfg.receipt_visibility == "proof_only":
+            inputs = None
+            output = None
+
         with self._lock:
             self._seq += 1
             seq = self._seq
@@ -100,6 +104,7 @@ class ReceiptBuilder:
                 "sdk_version": __version__,
                 "framework": framework,
                 "framework_version": framework_version,
+                "receipt_visibility": cfg.receipt_visibility,
             }
 
             # Compute payload HMAC over all fields (before adding payload_hmac itself)

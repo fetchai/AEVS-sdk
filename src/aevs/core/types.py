@@ -16,8 +16,8 @@ class ReceiptPayload(TypedDict):
     seq: int
     prev_hash: str
     tool_name: str
-    inputs: Any
-    output: Any
+    inputs: Any | None
+    output: Any | None
     status: str
     error: str | None
     started_at: str
@@ -29,4 +29,5 @@ class ReceiptPayload(TypedDict):
     sdk_version: str
     framework: str
     framework_version: str
+    receipt_visibility: str
     payload_hmac: str

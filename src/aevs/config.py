@@ -16,6 +16,7 @@ logger = logging.getLogger("aevs")
 _API_KEY_RE = re.compile(r"^aevs_sk_([a-zA-Z0-9]+)_([a-fA-F0-9]+)$")
 
 _VALID_FLOAT_HANDLING = {"decimal_string", "raise"}
+_VALID_RECEIPT_VISIBILITY = {"public", "private", "proof_only"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,7 @@ class AEVSConfig:
     max_buffer_records: int = 10_000
     drain_interval_ms: int = 5_000
     max_reference_entries: int = 1_000
+    receipt_visibility: str = "public"
 
     def __repr__(self) -> str:
         masked = self.api_key[:12] + "..." if len(self.api_key) > 16 else "***"
@@ -126,6 +128,11 @@ def _validate_config(config: AEVSConfig) -> None:
         raise AEVSConfigError("drain_interval_ms must be positive")
     if config.max_reference_entries <= 0:
         raise AEVSConfigError("max_reference_entries must be positive")
+    if config.receipt_visibility not in _VALID_RECEIPT_VISIBILITY:
+        raise AEVSConfigError(
+            f"receipt_visibility must be one of {_VALID_RECEIPT_VISIBILITY}, "
+            f"got {config.receipt_visibility!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +155,7 @@ def configure(
     max_buffer_records: int = 10_000,
     drain_interval_ms: int = 5_000,
     max_reference_entries: int = 1_000,
+    receipt_visibility: str = "public",
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
 
@@ -192,6 +200,7 @@ def configure(
 
     key_id, key_secret = _parse_api_key(resolved_key)
     _validate_agent_id(resolved_agent_id)
+    resolved_visibility = receipt_visibility or os.environ.get("AEVS_RECEIPT_VISIBILITY", "public")
     config = AEVSConfig(
         api_key=resolved_key,
         key_id=key_id,
@@ -206,6 +215,7 @@ def configure(
         max_buffer_records=max_buffer_records,
         drain_interval_ms=drain_interval_ms,
         max_reference_entries=max_reference_entries,
+        receipt_visibility=resolved_visibility.lower(),
     )
     _validate_config(config)
     _warn_if_insecure_remote_http(config.base_url)
