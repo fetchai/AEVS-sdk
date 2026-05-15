@@ -73,7 +73,7 @@ def main() -> None:
     _require_env("AEVS_API_KEY")
     _require_env("AEVS_AGENT_ID")
 
-    aevs.configure()
+    aevs.configure(buffer_path="./buffer.db", receipt_visibility="proof_only")
     aevs.enable(frameworks=["langchain"])
 
     print(f"\n=== AEVS session: {aevs.get_session_id()} ===")

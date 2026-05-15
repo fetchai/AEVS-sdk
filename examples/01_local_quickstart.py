@@ -45,8 +45,8 @@ def main() -> None:
             "  Get them at https://aevs.fetch.ai (sign in -> create key, create agent),\n"
             "  then put them in examples/.env (see examples/.env.example)."
         )
-
-    aevs.configure()  # reads AEVS_API_KEY and AEVS_AGENT_ID from the env
+    # receipt_visibility is set to private by default
+    aevs.configure(buffer_path="./buffer.db")  # reads AEVS_API_KEY and AEVS_AGENT_ID from the env
     aevs.enable(frameworks=["langchain"])
 
     result = add.invoke({"a": 6, "b": 7})

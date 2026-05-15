@@ -71,7 +71,7 @@ def main() -> None:
     _require_env("AEVS_AGENT_ID")
 
     # AEVS_API_KEY and AEVS_AGENT_ID are read from env automatically.
-    aevs.configure()
+    aevs.configure(buffer_path="./buffer.db", receipt_visibility="public")
     aevs.enable(frameworks=["langchain"])
 
     print(f"\n=== AEVS session: {aevs.get_session_id()} ===")
