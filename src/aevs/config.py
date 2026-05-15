@@ -38,7 +38,7 @@ class AEVSConfig:
     max_buffer_records: int = 10_000
     drain_interval_ms: int = 5_000
     max_reference_entries: int = 1_000
-    receipt_visibility: str = "public"
+    receipt_visibility: str = "private"
 
     def __repr__(self) -> str:
         masked = self.api_key[:12] + "..." if len(self.api_key) > 16 else "***"
@@ -178,10 +178,10 @@ def _sanitize_config(config: AEVSConfig) -> AEVSConfig:
     if config.receipt_visibility not in _VALID_RECEIPT_VISIBILITY:
         logger.warning(
             "AEVS: receipt_visibility must be one of %s, got %r. "
-            "Using default 'public'.",
+            "Using default 'private'.",
             _VALID_RECEIPT_VISIBILITY, config.receipt_visibility,
         )
-        corrections["receipt_visibility"] = "public"
+        corrections["receipt_visibility"] = "private"
 
     if corrections:
         return dataclasses.replace(config, **corrections)
@@ -208,7 +208,7 @@ def configure(
     max_buffer_records: int = 10_000,
     drain_interval_ms: int = 5_000,
     max_reference_entries: int = 1_000,
-    receipt_visibility: str = "public",
+    receipt_visibility: str = "private",
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
 
@@ -267,7 +267,7 @@ def configure(
         _global_config = None
         return
 
-    resolved_visibility = receipt_visibility or os.environ.get("AEVS_RECEIPT_VISIBILITY", "public")
+    resolved_visibility = receipt_visibility or os.environ.get("AEVS_RECEIPT_VISIBILITY", "private")
     config = AEVSConfig(
         api_key=resolved_key,
         key_id=key_id,
