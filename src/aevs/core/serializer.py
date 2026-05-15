@@ -9,8 +9,6 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
-from aevs.exceptions import AEVSSerializationError
-
 logger = logging.getLogger("aevs")
 
 
@@ -31,14 +29,18 @@ def _normalize(
         return value
     if isinstance(value, float):
         if math.isnan(value) or math.isinf(value):
-            raise AEVSSerializationError(
-                f"Float value {value!r} is not valid JSON. "
-                "Replace with null or a string representation."
+            logger.warning(
+                "AEVS: float value %r is not valid JSON — replacing with null in receipt. "
+                "Fix: replace NaN/inf with None or a string before passing to the tool.",
+                value,
             )
+            return None
         if float_handling == "raise":
-            raise AEVSSerializationError(
-                f"Float value {value!r} not allowed in strict mode. "
-                "Set float_handling='decimal_string' or convert to int/string."
+            logger.warning(
+                "AEVS: float value %r encountered in strict mode — "
+                "converting to decimal string instead of raising. "
+                "Fix: convert floats to int or string before passing to the tool.",
+                value,
             )
         return f"{value:.{float_precision}f}"
     if isinstance(value, bytes):

@@ -62,17 +62,23 @@ class TestConfigure:
         configure(api_key=TEST_API_KEY, agent_id=id2)
         assert get_config().agent_id == id2
 
-    def test_rejects_bad_float_handling(self):
-        with pytest.raises(AEVSConfigError, match="float_handling"):
+    def test_bad_float_handling_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, float_handling="invalid")
+        assert "float_handling" in caplog.text
+        assert get_config().float_handling == "decimal_string"
 
-    def test_rejects_negative_precision(self):
-        with pytest.raises(AEVSConfigError, match="float_precision"):
+    def test_negative_precision_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, float_precision=-1)
+        assert "float_precision" in caplog.text
+        assert get_config().float_precision == 6
 
-    def test_rejects_zero_timeout(self):
-        with pytest.raises(AEVSConfigError, match="signing_timeout_ms"):
+    def test_zero_timeout_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, signing_timeout_ms=0)
+        assert "signing_timeout_ms" in caplog.text
+        assert get_config().signing_timeout_ms == 2000
 
     def test_buffer_path_accepts_string(self):
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, buffer_path="/tmp/test.db")
@@ -86,16 +92,20 @@ class TestConfigure:
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_buffer_records=500)
         assert get_config().max_buffer_records == 500
 
-    def test_rejects_zero_max_buffer_records(self):
-        with pytest.raises(AEVSConfigError, match="max_buffer_records"):
+    def test_zero_max_buffer_records_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_buffer_records=0)
+        assert "max_buffer_records" in caplog.text
+        assert get_config().max_buffer_records == 10_000
 
-    def test_rejects_negative_max_buffer_records(self):
-        with pytest.raises(AEVSConfigError, match="max_buffer_records"):
+    def test_negative_max_buffer_records_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_buffer_records=-1)
+        assert "max_buffer_records" in caplog.text
+        assert get_config().max_buffer_records == 10_000
 
-    def test_configure_while_enabled_raises(self, tmp_path):
-        """configure() must reject calls while AEVS is enabled."""
+    def test_configure_while_enabled_warns(self, tmp_path, caplog):
+        """configure() must warn and keep existing config while AEVS is enabled."""
         import aevs
 
         configure(
@@ -105,8 +115,10 @@ class TestConfigure:
         )
         aevs.enable(frameworks=["langchain"])
         try:
-            with pytest.raises(AEVSConfigError, match="Cannot reconfigure"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
+            assert "Cannot reconfigure" in caplog.text
+            assert get_config() is not None
         finally:
             aevs.disable()
 
@@ -132,22 +144,19 @@ class TestMissingCredentials:
             configure()
         assert "api_key and agent_id" in caplog.text
         assert "aevs.fetch.ai" in caplog.text
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+        assert get_config() is None
 
     def test_only_api_key_warns_about_agent_id(self, caplog):
         with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY)
         assert "agent_id" in caplog.text
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+        assert get_config() is None
 
     def test_only_agent_id_warns_about_api_key(self, caplog):
         with caplog.at_level("WARNING", logger="aevs"):
             configure(agent_id=TEST_AGENT_ID)
         assert "api_key" in caplog.text
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+        assert get_config() is None
 
     def test_api_key_env_var_fallback(self, monkeypatch):
         monkeypatch.setenv("AEVS_API_KEY", TEST_API_KEY)
@@ -185,7 +194,7 @@ class TestMissingCredentials:
 
         with caplog.at_level("WARNING", logger="aevs"):
             aevs.enable()
-        assert "must be called" in caplog.text
+        assert "configure" in caplog.text
         assert not aevs._api._enabled
 
     def test_enable_after_missing_creds_warns_noop(self, caplog):
@@ -204,30 +213,37 @@ class TestAgentIdValidation:
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         assert get_config().agent_id == TEST_AGENT_ID
 
-    def test_rejects_non_uuid_string(self):
-        with pytest.raises(AEVSConfigError, match="valid UUID"):
+    def test_rejects_non_uuid_string(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id="not-a-uuid-at-all")
+        assert "valid UUID" in caplog.text
+        assert get_config() is None
 
-    def test_rejects_prefixed_identifier(self):
-        with pytest.raises(AEVSConfigError, match="UUID.*not a prefixed"):
+    def test_rejects_prefixed_identifier(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id="agt_12345")
+        assert "not a prefixed" in caplog.text
+        assert get_config() is None
 
-    def test_rejects_agent_prefixed_identifier(self):
-        with pytest.raises(AEVSConfigError, match="UUID.*not a prefixed"):
+    def test_rejects_agent_prefixed_identifier(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id="agent_12345")
+        assert "not a prefixed" in caplog.text
+        assert get_config() is None
 
-    def test_hints_uuid_without_dashes(self):
+    def test_hints_uuid_without_dashes(self, caplog):
         hex32 = "a" * 32
-        with pytest.raises(AEVSConfigError, match="without dashes"):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=hex32)
+        assert "without dashes" in caplog.text
+        assert get_config() is None
 
     def test_empty_string_treated_as_missing(self, caplog):
         """Empty agent_id is treated as missing, not validated."""
         with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id="")
         assert "agent_id" in caplog.text
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+        assert get_config() is None
 
     def test_validate_agent_id_directly(self):
         _validate_agent_id(TEST_AGENT_ID)
@@ -238,15 +254,18 @@ class TestAgentIdValidation:
 
 
 class TestGetConfig:
-    def test_raises_before_configure(self):
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+    def test_returns_none_before_configure(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = get_config()
+        assert result is None
+        assert "configure" in caplog.text
 
-    def test_reset_clears(self):
+    def test_reset_clears(self, caplog):
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
         reset_config()
-        with pytest.raises(AEVSConfigError, match="must be called"):
-            get_config()
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = get_config()
+        assert result is None
 
 
 class TestAEVSConfig:
