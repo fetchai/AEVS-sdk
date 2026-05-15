@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 _No changes yet._
 
+## [0.2.1] - 2026-05-15
+
+### Changed
+- **Breaking:** Default `receipt_visibility` changed from `"public"` to `"private"`.
+- The SDK never raises `AEVSConfigError` or `AEVSSerializationError` to user code. All errors are logged as warnings and the SDK degrades gracefully (no-op mode or auto-corrected defaults).
+- `configure()`: invalid API key or agent ID now logs a warning and enters no-op mode instead of raising.
+- `configure()`: invalid non-critical config fields (e.g. `float_precision=-1`) are auto-corrected to defaults with a warning instead of raising.
+- `enable()`: adapter loading failures (unknown adapter, import error, framework not installed) are logged as warnings and skipped instead of raising.
+- `enable()`: buffer/client init failures log a warning and enter no-op mode instead of raising.
+- `get_config()` returns `None` instead of raising when the SDK is not configured.
+- Serializer: `NaN`/`inf` floats are replaced with `null` (with a warning) instead of raising `AEVSSerializationError`.
+- Serializer: `float_handling="raise"` mode now falls through to decimal-string conversion with a warning instead of raising.
+
+### Added
+- `receipt_visibility` configuration parameter (`"public"`, `"private"`, `"proof_only"`). In `proof_only` mode, tool inputs and outputs are stripped from receipts — only the cryptographic proof of the call is recorded. Also settable via `AEVS_RECEIPT_VISIBILITY` env var.
+
 ## [0.2.0] - 2026-05-12
 
 ### Changed
@@ -17,8 +33,8 @@ _No changes yet._
 - **Breaking:** LangChain receipts now store the tool's argument dict in `inputs` instead of the full `ToolCall` envelope. `id` / `name` / `type` are still captured as `tool_call_id` / `tool_name` / `framework`.
 
 ### Added
-- Developer Certificate of Origin (DCO) v1.1: contributions require `git commit -s`, enforced by a GitHub Actions check. See [`DCO`](DCO) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- `examples/` directory with three runnable walkthroughs: local quickstart, OpenAI + LangChain, and Fetch.ai ASI:One. See [`examples/README.md`](examples/README.md).
+- Developer Certificate of Origin (DCO) v1.1: contributions require `git commit -s`, enforced by a GitHub Actions check. See [`DCO`](https://github.com/fetchai/AEVS-sdk/blob/main/DCO) and [`CONTRIBUTING.md`](https://github.com/fetchai/AEVS-sdk/blob/main/CONTRIBUTING.md).
+- `examples/` directory with three runnable walkthroughs: local quickstart, OpenAI + LangChain, and Fetch.ai ASI:One. See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/examples/README.md).
 - `tool_call_id` field on `get_reference_ids()` entries; `get_reference_id(lookup_id)` now resolves by either `run_id` or `tool_call_id`.
 
 ### Fixed
@@ -46,6 +62,7 @@ Initial public release.
 - Default `base_url` is HTTPS (`https://api.aevs.fetch.ai/v1`); the SDK warns when a non-loopback `http://` URL is configured.
 - HTTP error response bodies are truncated in WARNING logs; the full slice is kept at DEBUG only.
 
-[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fetchai/AEVS-sdk/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fetchai/AEVS-sdk/releases/tag/v0.1.0
