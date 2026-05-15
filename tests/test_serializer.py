@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from aevs.core.serializer import canonical_json, truncate_field
-from aevs.exceptions import AEVSSerializationError
 
 _VECTORS_PATH = (
     Path(__file__).resolve().parents[2] / "tests" / "shared" / "canonical_golden_vectors.json"
@@ -60,9 +59,11 @@ class TestFloatHandling:
         result = json.loads(canonical_json({"v": 3.14}, float_precision=2))
         assert result["v"] == "3.14"
 
-    def test_raise_mode(self):
-        with pytest.raises(AEVSSerializationError, match="Float value"):
-            canonical_json({"v": 1.5}, float_handling="raise")
+    def test_raise_mode_falls_through_to_decimal(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = json.loads(canonical_json({"v": 1.5}, float_handling="raise"))
+        assert result["v"] == "1.500000"
+        assert "strict mode" in caplog.text
 
     def test_float_in_nested_list(self):
         result = json.loads(canonical_json({"l": [1, 2.5, 3]}))
@@ -72,21 +73,29 @@ class TestFloatHandling:
         result = json.loads(canonical_json({"d": {"score": 0.99}}))
         assert result["d"]["score"] == "0.990000"
 
-    def test_nan_raises(self):
-        with pytest.raises(AEVSSerializationError, match="not valid JSON"):
-            canonical_json({"v": float("nan")})
+    def test_nan_becomes_null(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = json.loads(canonical_json({"v": float("nan")}))
+        assert result["v"] is None
+        assert "not valid JSON" in caplog.text
 
-    def test_inf_raises(self):
-        with pytest.raises(AEVSSerializationError, match="not valid JSON"):
-            canonical_json({"v": float("inf")})
+    def test_inf_becomes_null(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = json.loads(canonical_json({"v": float("inf")}))
+        assert result["v"] is None
+        assert "not valid JSON" in caplog.text
 
-    def test_negative_inf_raises(self):
-        with pytest.raises(AEVSSerializationError, match="not valid JSON"):
-            canonical_json({"v": float("-inf")})
+    def test_negative_inf_becomes_null(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = json.loads(canonical_json({"v": float("-inf")}))
+        assert result["v"] is None
+        assert "not valid JSON" in caplog.text
 
-    def test_nan_in_nested_structure(self):
-        with pytest.raises(AEVSSerializationError, match="not valid JSON"):
-            canonical_json({"outer": {"inner": [1, float("nan")]}})
+    def test_nan_in_nested_structure_becomes_null(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
+            result = json.loads(canonical_json({"outer": {"inner": [1, float("nan")]}}))
+        assert result["outer"]["inner"] == [1, None]
+        assert "not valid JSON" in caplog.text
 
 
 class TestSpecialTypes:

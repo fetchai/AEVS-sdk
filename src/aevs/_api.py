@@ -16,7 +16,6 @@ from typing import Any
 
 from aevs.config import get_config
 from aevs.core.types import ReceiptPayload
-from aevs.exceptions import AEVSConfigError
 
 logger = logging.getLogger("aevs")
 
@@ -136,10 +135,8 @@ def enable(*, frameworks: list[str] | None = None) -> None:
         from aevs.core.client import AEVSClient
         from aevs.core.receipt import ReceiptBuilder
 
-        try:
-            config = get_config()
-        except AEVSConfigError:
-            logger.warning("aevs.configure() must be called before aevs.enable().")
+        config = get_config()
+        if config is None:
             return
 
         new_client: AEVSClient | None = None
@@ -185,7 +182,12 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                         "AEVS: error closing client during buffer init rollback",
                         exc_info=True,
                     )
-            raise
+            logger.warning(
+                "AEVS: failed to initialize buffer/client. "
+                "AEVS will run in no-op mode — no receipts will be captured.",
+                exc_info=True,
+            )
+            return
 
         # Session lifecycle gate — decides between three states based on
         # the buffer's persisted state and the count of un-flushed
@@ -321,7 +323,11 @@ def enable(*, frameworks: list[str] | None = None) -> None:
             for name in frameworks_to_try:
                 entry = _ADAPTER_REGISTRY.get(name)
                 if entry is None:
-                    raise AEVSConfigError(f"Unknown framework adapter: {name!r}")
+                    logger.warning(
+                        "AEVS: Unknown framework adapter: %r. Skipping.",
+                        name,
+                    )
+                    continue
 
                 module_path, class_name = entry
                 try:
@@ -330,9 +336,11 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     mod = importlib.import_module(module_path)
                     adapter_cls = getattr(mod, class_name)
                 except (ImportError, AttributeError) as exc:
-                    raise AEVSConfigError(
-                        f"Failed to load adapter {name!r}: {exc}"
-                    ) from exc
+                    logger.warning(
+                        "AEVS: Failed to load adapter %r: %s. Skipping.",
+                        name, exc,
+                    )
+                    continue
 
                 adapter = adapter_cls()
                 if adapter.is_available():
@@ -343,8 +351,9 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                     new_adapters.append(adapter)
                     logger.info("AEVS: enabled %s adapter", name)
                 elif frameworks is not None:
-                    raise AEVSConfigError(
-                        f"Framework {name!r} requested but not installed"
+                    logger.warning(
+                        "AEVS: Framework %r requested but not installed. Skipping.",
+                        name,
                     )
         except Exception:
             for adapter in new_adapters:
@@ -363,7 +372,12 @@ def enable(*, frameworks: list[str] | None = None) -> None:
                 new_buffer.close()
             except Exception:
                 logger.debug("AEVS: error closing buffer during enable() rollback", exc_info=True)
-            raise
+            logger.warning(
+                "AEVS: unexpected error during adapter setup. "
+                "AEVS will run in no-op mode — no receipts will be captured.",
+                exc_info=True,
+            )
+            return
 
         _warn_dual_mcp_langchain(new_adapters)
 
@@ -514,6 +528,9 @@ def _handle_tool_call(**kwargs: Any) -> None:
         from aevs.core.serializer import canonical_json
 
         config = get_config()
+        if config is None:
+            return
+
         receipt: ReceiptPayload = builder.build(**kwargs)
 
         ref_id = receipt.get("reference_id")
@@ -568,6 +585,9 @@ async def _handle_tool_call_async(**kwargs: Any) -> None:
         from aevs.core.serializer import canonical_json
 
         config = get_config()
+        if config is None:
+            return
+
         receipt: ReceiptPayload = builder.build(**kwargs)
 
         ref_id = receipt.get("reference_id")

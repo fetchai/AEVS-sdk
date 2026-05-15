@@ -75,6 +75,7 @@ aevs.is_healthy()                        # False after sustained buffer write fa
 | `api_key` | **required** — falls back to `AEVS_API_KEY` env var | SDK key (`aevs_sk_<id>_<hex>`) — get one at https://aevs.fetch.ai |
 | `agent_id` | **required** — falls back to `AEVS_AGENT_ID` env var | Agent UUID from the AEVS dashboard |
 | `base_url` | `https://api.aevs.fetch.ai/v1` | AEVS backend URL |
+| `receipt_visibility` | `"private"` | Controls what data is included in receipts — see [Receipt Visibility](#receipt-visibility) |
 | `signing_timeout_ms` | `2000` | HTTP timeout for receipt submission |
 | `float_handling` | `"decimal_string"` | How floats are serialized (`decimal_string` or `raise`) |
 | `float_precision` | `6` | Decimal places for float serialization |
@@ -140,16 +141,44 @@ Useful for log correlation: every receipt carries `session_id`, so
 filtering receipts by session in the AEVS backend isolates a single
 SDK run.
 
+### Receipt Visibility
+
+The `receipt_visibility` parameter controls how much data is included in each receipt. This lets you balance auditability against data sensitivity.
+
+| Mode | Inputs & outputs | HMAC & hash chain | Use case |
+|------|-----------------|-------------------|----------|
+| `"public"` | Included in receipt | Yes | Full audit — verifiers can inspect what tools received and returned |
+| `"private"` | Included in receipt | Yes | Same as public (receipt is signed and submitted) but marked for restricted access |
+| `"proof_only"` | **Stripped** (set to `null`) | Yes | Cryptographic proof that a tool call happened, without revealing what data flowed through it |
+
+```python
+# Default: data included but marked for restricted access
+aevs.configure(api_key=..., agent_id=..., receipt_visibility="private")
+
+# Full public audit — verifiers can inspect inputs/outputs
+aevs.configure(api_key=..., agent_id=..., receipt_visibility="public")
+
+# Strip inputs/outputs — only prove the call happened
+aevs.configure(api_key=..., agent_id=..., receipt_visibility="proof_only")
+```
+
+Can also be set via the `AEVS_RECEIPT_VISIBILITY` environment variable (overridden by the explicit parameter).
+
+In `proof_only` mode the receipt still records `tool_name`, `status`, `duration_ms`, timing, and the full hash chain — so you can prove *that* a tool was called, *when*, and in *what order*, without exposing *what* data was passed.
+
 ## Data & privacy
 
-AEVS receipts may include **tool inputs and outputs**, which can contain secrets or PII depending
-on what your tools return (e.g. prompts, retrieved documents, API responses).
+AEVS receipts may include **tool inputs and outputs** (unless `receipt_visibility="proof_only"`),
+which can contain secrets or PII depending on what your tools return (e.g. prompts, retrieved
+documents, API responses).
 
 - Receipts are buffered locally in an encrypted SQLite database (default `~/.aevs/buffer.db`).
 - Receipts are submitted to the AEVS backend over HTTPS by default (`base_url`).
+- Set `receipt_visibility="proof_only"` to prevent inputs/outputs from ever leaving the host.
 
 You are responsible for ensuring your tool layer does not emit sensitive data you cannot store or
-transmit. If needed, redact at the tool boundary (before data reaches the agent runtime).
+transmit. If needed, redact at the tool boundary (before data reaches the agent runtime), or use
+`receipt_visibility="proof_only"` to strip all payload data from receipts.
 
 ## Threat model / non-goals
 

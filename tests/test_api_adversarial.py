@@ -19,7 +19,6 @@ import respx
 
 import aevs._api as api
 from aevs.config import configure, get_config, reset_config
-from aevs.exceptions import AEVSConfigError
 from tests.conftest import (
     TEST_AGENT_ID,
     TEST_API_KEY,
@@ -113,8 +112,8 @@ class TestRegisterAtForkWindowsFallback:
 
 class TestEnableFailurePaths:
     @respx.mock
-    def test_client_construction_failure_propagates(self, tmp_path):
-        """AEVSClient() raises during enable() — error must propagate."""
+    def test_client_construction_failure_enters_noop(self, tmp_path, caplog):
+        """AEVSClient() raises during enable() — SDK enters no-op mode."""
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
@@ -122,12 +121,13 @@ class TestEnableFailurePaths:
         )
         with patch("aevs.core.client.AEVSClient.__init__",
                     side_effect=RuntimeError("conn fail")):
-            with pytest.raises(RuntimeError, match="conn fail"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable()
+        assert "failed to initialize" in caplog.text
         assert api._enabled is False
 
     @respx.mock
-    def test_buffer_failure_closes_client(self, tmp_path):
+    def test_buffer_failure_closes_client(self, tmp_path, caplog):
         """If LocalBuffer() fails after client is created, client must be closed."""
         configure(
             api_key=TEST_API_KEY,
@@ -136,13 +136,14 @@ class TestEnableFailurePaths:
         )
         with patch("aevs.core.buffer.LocalBuffer.__init__",
                     side_effect=OSError("disk full")):
-            with pytest.raises(OSError, match="disk full"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable()
+        assert "failed to initialize" in caplog.text
         assert api._enabled is False
 
     @respx.mock
-    def test_buffer_failure_client_close_also_fails(self, tmp_path):
-        """If both buffer creation AND client.close() fail, original error wins."""
+    def test_buffer_failure_client_close_also_fails(self, tmp_path, caplog):
+        """If both buffer creation AND client.close() fail, SDK enters no-op mode."""
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
@@ -153,19 +154,23 @@ class TestEnableFailurePaths:
         with patch("aevs.core.client.AEVSClient", return_value=broken_client), \
              patch("aevs.core.buffer.LocalBuffer.__init__",
                    side_effect=OSError("disk full")):
-            with pytest.raises(OSError, match="disk full"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable()
+        assert "failed to initialize" in caplog.text
+        assert api._enabled is False
 
-    def test_unknown_framework_raises(self, tmp_path):
+    def test_unknown_framework_warns_and_skips(self, tmp_path, caplog):
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
             buffer_path=str(tmp_path / "buf.db"),
         )
-        with pytest.raises(AEVSConfigError, match="Unknown framework"):
+        with caplog.at_level("WARNING", logger="aevs"):
             api.enable(frameworks=["nonexistent_framework"])
+        assert "Unknown framework" in caplog.text
+        api.disable()
 
-    def test_unavailable_explicit_framework_raises(self, tmp_path):
+    def test_unavailable_explicit_framework_warns(self, tmp_path, caplog):
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
@@ -173,11 +178,13 @@ class TestEnableFailurePaths:
         )
         with patch("aevs.adapters.langchain.LangChainAdapter.is_available",
                     return_value=False):
-            with pytest.raises(AEVSConfigError, match="not installed"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable(frameworks=["langchain"])
+        assert "not installed" in caplog.text
+        api.disable()
 
-    def test_adapter_import_failure_raises(self, tmp_path):
-        """If importlib.import_module fails for an adapter, AEVSConfigError."""
+    def test_adapter_import_failure_warns_and_skips(self, tmp_path, caplog):
+        """If importlib.import_module fails for an adapter, warn and skip."""
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
@@ -192,11 +199,13 @@ class TestEnableFailurePaths:
             return real_import(name, *a, **kw)
 
         with patch("importlib.import_module", side_effect=failing_import):
-            with pytest.raises(AEVSConfigError, match="Failed to load"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable(frameworks=["langchain"])
+        assert "Failed to load" in caplog.text
+        api.disable()
 
-    def test_second_adapter_failure_unpatches_first_and_closes(self, tmp_path):
-        """If second adapter fails, first is unpatched, client+buffer closed."""
+    def test_second_adapter_failure_unpatches_first_and_enters_noop(self, tmp_path, caplog):
+        """If second adapter fails unexpectedly, first is unpatched, SDK enters no-op."""
         configure(
             api_key=TEST_API_KEY,
             agent_id=TEST_AGENT_ID,
@@ -204,12 +213,13 @@ class TestEnableFailurePaths:
         )
         with patch("aevs.adapters.mcp.MCPAdapter.is_available",
                     side_effect=RuntimeError("mcp boom")):
-            with pytest.raises(RuntimeError, match="mcp boom"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable(frameworks=["langchain", "mcp"])
+        assert "unexpected error during adapter setup" in caplog.text
         assert api._enabled is False
 
-    def test_adapter_failure_cleanup_all_raise(self, tmp_path):
-        """When cleanup itself fails: unpatch, close, close all raise — original error wins.
+    def test_adapter_failure_cleanup_all_raise(self, tmp_path, caplog):
+        """When cleanup itself fails: unpatch, close, close all raise — SDK enters no-op.
 
         Scenario: langchain adapter patches OK, mcp adapter explodes,
         then during cleanup unpatch+close+close all throw.
@@ -235,9 +245,10 @@ class TestEnableFailurePaths:
                     side_effect=RuntimeError("close fail")), \
              patch("aevs.core.buffer.LocalBuffer.close",
                     side_effect=RuntimeError("buf close fail")):
-            with pytest.raises(RuntimeError, match="mcp exploded"):
+            with caplog.at_level("WARNING", logger="aevs"):
                 api.enable(frameworks=["langchain", "mcp"])
 
+        assert "unexpected error during adapter setup" in caplog.text
         cleanup_adapter = LangChainAdapter()
         cleanup_adapter._patched = True
         from langchain_core.tools import BaseTool

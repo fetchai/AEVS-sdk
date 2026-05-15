@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import re
@@ -7,6 +8,7 @@ import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from aevs.exceptions import AEVSConfigError
@@ -16,6 +18,7 @@ logger = logging.getLogger("aevs")
 _API_KEY_RE = re.compile(r"^aevs_sk_([a-zA-Z0-9]+)_([a-fA-F0-9]+)$")
 
 _VALID_FLOAT_HANDLING = {"decimal_string", "raise"}
+_VALID_RECEIPT_VISIBILITY = {"public", "private", "proof_only"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +38,7 @@ class AEVSConfig:
     max_buffer_records: int = 10_000
     drain_interval_ms: int = 5_000
     max_reference_entries: int = 1_000
+    receipt_visibility: str = "private"
 
     def __repr__(self) -> str:
         masked = self.api_key[:12] + "..." if len(self.api_key) > 16 else "***"
@@ -107,25 +111,81 @@ def _warn_if_insecure_remote_http(base_url: str) -> None:
     )
 
 
-def _validate_config(config: AEVSConfig) -> None:
-    """Validate configuration values."""
+def _sanitize_config(config: AEVSConfig) -> AEVSConfig:
+    """Validate configuration values, auto-correcting non-critical fields to defaults.
+
+    Returns a (possibly corrected) config. Never raises — logs warnings for
+    each field that was auto-corrected.
+    """
+    corrections: dict[str, Any] = {}
+
     if config.float_handling not in _VALID_FLOAT_HANDLING:
-        raise AEVSConfigError(
-            f"float_handling must be one of {_VALID_FLOAT_HANDLING}, "
-            f"got {config.float_handling!r}"
+        logger.warning(
+            "AEVS: float_handling must be one of %s, got %r. "
+            "Using default 'decimal_string'.",
+            _VALID_FLOAT_HANDLING, config.float_handling,
         )
+        corrections["float_handling"] = "decimal_string"
+
     if config.float_precision < 0:
-        raise AEVSConfigError("float_precision must be non-negative")
+        logger.warning(
+            "AEVS: float_precision must be non-negative (got %d). "
+            "Using default value 6.",
+            config.float_precision,
+        )
+        corrections["float_precision"] = 6
+
     if config.signing_timeout_ms <= 0:
-        raise AEVSConfigError("signing_timeout_ms must be positive")
+        logger.warning(
+            "AEVS: signing_timeout_ms must be positive (got %d). "
+            "Using default value 2000.",
+            config.signing_timeout_ms,
+        )
+        corrections["signing_timeout_ms"] = 2000
+
     if config.max_payload_bytes <= 0:
-        raise AEVSConfigError("max_payload_bytes must be positive")
+        logger.warning(
+            "AEVS: max_payload_bytes must be positive (got %d). "
+            "Using default value 1048576.",
+            config.max_payload_bytes,
+        )
+        corrections["max_payload_bytes"] = 1_048_576
+
     if config.max_buffer_records <= 0:
-        raise AEVSConfigError("max_buffer_records must be positive")
+        logger.warning(
+            "AEVS: max_buffer_records must be positive (got %d). "
+            "Using default value 10000.",
+            config.max_buffer_records,
+        )
+        corrections["max_buffer_records"] = 10_000
+
     if config.drain_interval_ms <= 0:
-        raise AEVSConfigError("drain_interval_ms must be positive")
+        logger.warning(
+            "AEVS: drain_interval_ms must be positive (got %d). "
+            "Using default value 5000.",
+            config.drain_interval_ms,
+        )
+        corrections["drain_interval_ms"] = 5_000
+
     if config.max_reference_entries <= 0:
-        raise AEVSConfigError("max_reference_entries must be positive")
+        logger.warning(
+            "AEVS: max_reference_entries must be positive (got %d). "
+            "Using default value 1000.",
+            config.max_reference_entries,
+        )
+        corrections["max_reference_entries"] = 1_000
+
+    if config.receipt_visibility not in _VALID_RECEIPT_VISIBILITY:
+        logger.warning(
+            "AEVS: receipt_visibility must be one of %s, got %r. "
+            "Using default 'private'.",
+            _VALID_RECEIPT_VISIBILITY, config.receipt_visibility,
+        )
+        corrections["receipt_visibility"] = "private"
+
+    if corrections:
+        return dataclasses.replace(config, **corrections)
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +208,7 @@ def configure(
     max_buffer_records: int = 10_000,
     drain_interval_ms: int = 5_000,
     max_reference_entries: int = 1_000,
+    receipt_visibility: str = "private",
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
 
@@ -159,9 +220,11 @@ def configure(
 
     _api = sys.modules.get("aevs._api")
     if _api is not None and getattr(_api, "_enabled", False):
-        raise AEVSConfigError(
-            "Cannot reconfigure while AEVS is enabled. Call aevs.disable() first."
+        logger.warning(
+            "AEVS: Cannot reconfigure while AEVS is enabled. "
+            "Call aevs.disable() first. Configuration unchanged."
         )
+        return
 
     resolved_key = api_key or os.environ.get("AEVS_API_KEY")
     resolved_agent_id = agent_id or os.environ.get("AEVS_AGENT_ID")
@@ -185,13 +248,26 @@ def configure(
         _global_config = None
         return
 
-    # Type-narrow for mypy: the `missing`/early-return above already handled
-    # the None and empty-string cases, so neither assertion can fire at runtime.
-    assert resolved_key is not None
-    assert resolved_agent_id is not None
+    if resolved_key is None or resolved_agent_id is None:
+        logger.warning(
+            "AEVS: resolved credentials are unexpectedly None. "
+            "AEVS will run in no-op mode — no receipts will be captured."
+        )
+        _global_config = None
+        return
 
-    key_id, key_secret = _parse_api_key(resolved_key)
-    _validate_agent_id(resolved_agent_id)
+    try:
+        key_id, key_secret = _parse_api_key(resolved_key)
+        _validate_agent_id(resolved_agent_id)
+    except AEVSConfigError as exc:
+        logger.warning(
+            "AEVS: %s AEVS will run in no-op mode — no receipts will be captured.",
+            exc,
+        )
+        _global_config = None
+        return
+
+    resolved_visibility = receipt_visibility or os.environ.get("AEVS_RECEIPT_VISIBILITY", "private")
     config = AEVSConfig(
         api_key=resolved_key,
         key_id=key_id,
@@ -206,16 +282,24 @@ def configure(
         max_buffer_records=max_buffer_records,
         drain_interval_ms=drain_interval_ms,
         max_reference_entries=max_reference_entries,
+        receipt_visibility=resolved_visibility.lower(),
     )
-    _validate_config(config)
+    config = _sanitize_config(config)
     _warn_if_insecure_remote_http(config.base_url)
     _global_config = config
 
 
-def get_config() -> AEVSConfig:
-    """Return the current config. Raises if not configured."""
+def get_config() -> AEVSConfig | None:
+    """Return the current config, or None if not configured.
+
+    When None is returned the SDK operates in no-op mode — no receipts
+    are captured but the host agent is never interrupted.
+    """
     if _global_config is None:
-        raise AEVSConfigError("aevs.configure() must be called before using the SDK.")
+        logger.warning(
+            "AEVS: aevs.configure() has not been called or configuration failed. "
+            "AEVS is in no-op mode — no receipts will be captured."
+        )
     return _global_config
 
 

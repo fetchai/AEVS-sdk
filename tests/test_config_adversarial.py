@@ -34,29 +34,41 @@ class TestParseApiKeyHexValidation:
 
 
 class TestConfigValidationEdgeCases:
-    def test_rejects_zero_drain_interval(self):
-        with pytest.raises(AEVSConfigError, match="drain_interval_ms"):
+    def test_zero_drain_interval_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, drain_interval_ms=0)
+        assert "drain_interval_ms" in caplog.text
+        assert get_config().drain_interval_ms == 5_000
 
-    def test_rejects_negative_drain_interval(self):
-        with pytest.raises(AEVSConfigError, match="drain_interval_ms"):
+    def test_negative_drain_interval_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, drain_interval_ms=-100)
+        assert "drain_interval_ms" in caplog.text
+        assert get_config().drain_interval_ms == 5_000
 
-    def test_rejects_zero_max_reference_entries(self):
-        with pytest.raises(AEVSConfigError, match="max_reference_entries"):
+    def test_zero_max_reference_entries_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_reference_entries=0)
+        assert "max_reference_entries" in caplog.text
+        assert get_config().max_reference_entries == 1_000
 
-    def test_rejects_negative_max_reference_entries(self):
-        with pytest.raises(AEVSConfigError, match="max_reference_entries"):
+    def test_negative_max_reference_entries_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_reference_entries=-1)
+        assert "max_reference_entries" in caplog.text
+        assert get_config().max_reference_entries == 1_000
 
-    def test_rejects_zero_max_payload_bytes(self):
-        with pytest.raises(AEVSConfigError, match="max_payload_bytes"):
+    def test_zero_max_payload_bytes_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_payload_bytes=0)
+        assert "max_payload_bytes" in caplog.text
+        assert get_config().max_payload_bytes == 1_048_576
 
-    def test_rejects_negative_max_payload_bytes(self):
-        with pytest.raises(AEVSConfigError, match="max_payload_bytes"):
+    def test_negative_max_payload_bytes_autocorrects(self, caplog):
+        with caplog.at_level("WARNING", logger="aevs"):
             configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, max_payload_bytes=-1)
+        assert "max_payload_bytes" in caplog.text
+        assert get_config().max_payload_bytes == 1_048_576
 
     def test_accepts_valid_raise_float_handling(self):
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID, float_handling="raise")
