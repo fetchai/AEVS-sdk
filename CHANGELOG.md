@@ -6,7 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **Invocation ID tracking** — each `graph.invoke()` / `.ainvoke()` / `.stream()` / `.astream()` call on a LangGraph compiled graph automatically gets a unique `invocation_id` (UUID v4). All tool calls within that graph execution share the same ID in their receipts, regardless of how many steps they span. Subgraphs inherit the parent's ID. Direct tool calls outside a graph get `None`. Falls back to LangSmith `trace_id` when available.
 
 ## [0.2.1] - 2026-05-15
 
