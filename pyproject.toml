@@ -51,6 +51,7 @@ ruff = ">=0.4"
 mypy = ">=1.10"
 respx = ">=0.21"
 langchain-core = ">=0.2"
+langgraph = ">=1.2"
 mcp = ">=1.20"
 
 [build-system]

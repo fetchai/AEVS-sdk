@@ -32,7 +32,7 @@ def _get_invocation_id() -> str | None:
     if inv:
         return inv
     try:
-        from langsmith.run_helpers import get_current_run_tree  # type: ignore[import-not-found]
+        from langsmith.run_helpers import get_current_run_tree
 
         rt = get_current_run_tree()
         if rt and rt.trace_id:
@@ -347,10 +347,10 @@ class LangChainAdapter(BaseAdapter):
 
             return wrapper
 
-        CompiledStateGraph.invoke = _wrap_sync(self._original_graph_invoke)  # type: ignore[assignment]
-        CompiledStateGraph.ainvoke = _wrap_async(self._original_graph_ainvoke)  # type: ignore[assignment]
-        CompiledStateGraph.stream = _wrap_stream(self._original_graph_stream)  # type: ignore[assignment]
-        CompiledStateGraph.astream = _wrap_astream(self._original_graph_astream)  # type: ignore[assignment]
+        CompiledStateGraph.invoke = _wrap_sync(self._original_graph_invoke)  # type: ignore[method-assign]
+        CompiledStateGraph.ainvoke = _wrap_async(self._original_graph_ainvoke)  # type: ignore[method-assign]
+        CompiledStateGraph.stream = _wrap_stream(self._original_graph_stream)  # type: ignore[method-assign]
+        CompiledStateGraph.astream = _wrap_astream(self._original_graph_astream)  # type: ignore[method-assign]
         self._graph_patched = True
         logger.debug("AEVS: LangGraph CompiledStateGraph patched for invocation_id tracking")
 
@@ -359,10 +359,10 @@ class LangChainAdapter(BaseAdapter):
         if not self._graph_patched:
             return
         cls = self._graph_cls
-        cls.invoke = self._original_graph_invoke  # type: ignore[method-assign]
-        cls.ainvoke = self._original_graph_ainvoke  # type: ignore[method-assign]
-        cls.stream = self._original_graph_stream  # type: ignore[method-assign]
-        cls.astream = self._original_graph_astream  # type: ignore[method-assign]
+        cls.invoke = self._original_graph_invoke
+        cls.ainvoke = self._original_graph_ainvoke
+        cls.stream = self._original_graph_stream
+        cls.astream = self._original_graph_astream
         self._graph_cls = None
         self._original_graph_invoke = None
         self._original_graph_ainvoke = None
