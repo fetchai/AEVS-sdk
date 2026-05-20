@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import functools
 import logging
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from aevs.adapters.base import (
     AsyncToolCallHandler,
@@ -14,6 +15,31 @@ from aevs.adapters.base import (
 )
 
 logger = logging.getLogger("aevs")
+
+# ContextVar holding the current invocation ID. Set at the CompiledStateGraph
+# entry point (invoke/ainvoke/stream/astream) so all tool calls within a single
+# graph execution share the same value regardless of how many steps they span.
+_invocation_id: ContextVar[str | None] = ContextVar("aevs_invocation_id", default=None)
+
+
+def _get_invocation_id() -> str | None:
+    """Return the current invocation ID if inside a patched graph execution.
+
+    Falls back to LangSmith's trace_id when available (best-effort, no hard
+    dependency on langsmith).
+    """
+    inv = _invocation_id.get(None)
+    if inv:
+        return inv
+    try:
+        from langsmith.run_helpers import get_current_run_tree  # type: ignore[import-not-found]
+
+        rt = get_current_run_tree()
+        if rt and rt.trace_id:
+            return str(rt.trace_id)
+    except Exception:
+        pass
+    return None
 
 
 def _get_langchain_version() -> str:
@@ -71,6 +97,13 @@ class LangChainAdapter(BaseAdapter):
         self._original_invoke: Any = None
         self._original_ainvoke: Any = None
         self._patched = False
+        # Graph-level patching state
+        self._graph_cls: Any = None
+        self._original_graph_invoke: Any = None
+        self._original_graph_ainvoke: Any = None
+        self._original_graph_stream: Any = None
+        self._original_graph_astream: Any = None
+        self._graph_patched = False
 
     @property
     def name(self) -> str:
@@ -166,6 +199,7 @@ class LangChainAdapter(BaseAdapter):
                     ended_at=ended_at,
                     run_id=capture.tool_run_id,
                     parent_run_id=parent_run_id,
+                    invocation_id=_get_invocation_id(),
                     tool_call_id=tool_call_id,
                     framework="langchain",
                     framework_version=lc_version,
@@ -220,6 +254,7 @@ class LangChainAdapter(BaseAdapter):
                     ended_at=ended_at,
                     run_id=capture.tool_run_id,
                     parent_run_id=parent_run_id,
+                    invocation_id=_get_invocation_id(),
                     tool_call_id=tool_call_id,
                     framework="langchain",
                     framework_version=lc_version,
@@ -234,7 +269,107 @@ class LangChainAdapter(BaseAdapter):
         BaseTool.invoke = patched_invoke  # type: ignore[assignment]
         BaseTool.ainvoke = patched_ainvoke  # type: ignore[assignment]
         self._patched = True
+        self._patch_graph()
         logger.info("AEVS: LangChain adapter patched")
+
+    def _patch_graph(self) -> None:
+        """Patch CompiledStateGraph entry points to set invocation_id ContextVar.
+
+        Conditionally imports langgraph — if not installed, this is a no-op.
+        """
+        if self._graph_patched:
+            return
+        try:
+            from langgraph.graph.state import CompiledStateGraph
+        except ImportError:
+            logger.debug("AEVS: langgraph not installed, skipping graph-level patching")
+            return
+
+        self._graph_cls = CompiledStateGraph
+        self._original_graph_invoke = CompiledStateGraph.invoke
+        self._original_graph_ainvoke = CompiledStateGraph.ainvoke
+        self._original_graph_stream = CompiledStateGraph.stream
+        self._original_graph_astream = CompiledStateGraph.astream
+
+        def _wrap_sync(original: Any) -> Any:
+            @functools.wraps(original)
+            def wrapper(graph_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _invocation_id.get(None):
+                    return original(graph_self, *args, **kwargs)
+                token = _invocation_id.set(str(uuid4()))
+                try:
+                    return original(graph_self, *args, **kwargs)
+                finally:
+                    _invocation_id.reset(token)
+
+            return wrapper
+
+        def _wrap_async(original: Any) -> Any:
+            @functools.wraps(original)
+            async def wrapper(graph_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _invocation_id.get(None):
+                    return await original(graph_self, *args, **kwargs)
+                token = _invocation_id.set(str(uuid4()))
+                try:
+                    return await original(graph_self, *args, **kwargs)
+                finally:
+                    _invocation_id.reset(token)
+
+            return wrapper
+
+        def _wrap_stream(original: Any) -> Any:
+            @functools.wraps(original)
+            def wrapper(graph_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _invocation_id.get(None):
+                    yield from original(graph_self, *args, **kwargs)
+                    return
+                token = _invocation_id.set(str(uuid4()))
+                try:
+                    yield from original(graph_self, *args, **kwargs)
+                finally:
+                    _invocation_id.reset(token)
+
+            return wrapper
+
+        def _wrap_astream(original: Any) -> Any:
+            @functools.wraps(original)
+            async def wrapper(graph_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _invocation_id.get(None):
+                    async for chunk in original(graph_self, *args, **kwargs):
+                        yield chunk
+                    return
+                token = _invocation_id.set(str(uuid4()))
+                try:
+                    async for chunk in original(graph_self, *args, **kwargs):
+                        yield chunk
+                finally:
+                    _invocation_id.reset(token)
+
+            return wrapper
+
+        CompiledStateGraph.invoke = _wrap_sync(self._original_graph_invoke)  # type: ignore[assignment]
+        CompiledStateGraph.ainvoke = _wrap_async(self._original_graph_ainvoke)  # type: ignore[assignment]
+        CompiledStateGraph.stream = _wrap_stream(self._original_graph_stream)  # type: ignore[assignment]
+        CompiledStateGraph.astream = _wrap_astream(self._original_graph_astream)  # type: ignore[assignment]
+        self._graph_patched = True
+        logger.debug("AEVS: LangGraph CompiledStateGraph patched for invocation_id tracking")
+
+    def _unpatch_graph(self) -> None:
+        """Restore original CompiledStateGraph methods."""
+        if not self._graph_patched:
+            return
+        cls = self._graph_cls
+        cls.invoke = self._original_graph_invoke  # type: ignore[method-assign]
+        cls.ainvoke = self._original_graph_ainvoke  # type: ignore[method-assign]
+        cls.stream = self._original_graph_stream  # type: ignore[method-assign]
+        cls.astream = self._original_graph_astream  # type: ignore[method-assign]
+        self._graph_cls = None
+        self._original_graph_invoke = None
+        self._original_graph_ainvoke = None
+        self._original_graph_stream = None
+        self._original_graph_astream = None
+        self._graph_patched = False
+        logger.debug("AEVS: LangGraph CompiledStateGraph unpatched")
 
     def unpatch(self) -> None:
         if not self._patched:
@@ -247,4 +382,5 @@ class LangChainAdapter(BaseAdapter):
         self._original_invoke = None
         self._original_ainvoke = None
         self._patched = False
+        self._unpatch_graph()
         logger.info("AEVS: LangChain adapter unpatched")

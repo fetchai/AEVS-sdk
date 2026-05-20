@@ -25,6 +25,7 @@ class ReceiptPayload(TypedDict):
     duration_ms: int
     run_id: str | None
     parent_run_id: str | None
+    invocation_id: str | None
     reference_id: str
     sdk_version: str
     framework: str
