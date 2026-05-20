@@ -109,6 +109,43 @@ aevs.get_reference_ids(clear=True)  # Get all entries, then clear
 aevs.clear_reference_ids()          # Drop all entries
 ```
 
+### Invocation IDs
+
+Each call to `graph.invoke()` / `.ainvoke()` / `.stream()` / `.astream()` on a
+LangGraph compiled graph automatically gets a unique **invocation ID** (UUID v4).
+Every tool call executed during that graph run — across all steps — shares the
+same `invocation_id` in its receipt.
+
+```
+session_id:      |<------------ entire session ------------>|
+invocation_id:   |<-- invoke 1 -->|    |<-- invoke 2 -->|
+tool calls:      | t1 | t2 | t3  |    | t4 | t5 |
+```
+
+This is fully automatic — no code changes needed. The SDK patches the graph
+entry points during `aevs.enable()` and uses a `ContextVar` to propagate the
+ID through the execution, including across multiple agent steps and into
+subgraphs.
+
+| Scenario | `invocation_id` in receipt |
+|----------|---------------------------|
+| Tools inside a LangGraph agent (`create_react_agent`, custom `StateGraph`) | UUID — shared across all tools in that invoke |
+| Subgraphs (graph-in-graph) | Inherits the parent graph's ID |
+| `graph.batch([...])` | Each batch item gets its own ID |
+| Direct `tool.invoke()` (no graph) | `None` |
+| LCEL chains (`prompt \| llm \| tool`) | `None` |
+| Separate `graph.invoke()` calls | Different UUIDs |
+
+**Why not `parent_run_id`?** LangGraph wraps each step's tools in a separate
+chain node, so tools in different steps get different `parent_run_id` values.
+The `invocation_id` is the only receipt field that correctly groups all tools
+from the same graph execution.
+
+**LangSmith fallback.** If `langsmith` is installed and tracing is active, the
+SDK will use `trace_id` from the current `RunTree` as a fallback when the
+`ContextVar` is not set (e.g. tools called outside a compiled graph but inside
+a traced context).
+
 ### Session IDs
 
 Each `enable()` mints a fresh UUIDv4 **session id** — *or recovers a
@@ -250,6 +287,7 @@ AEVSClient  ──▶  POST /v1/receipts  ──▶  AEVS Backend
 ```
 
 - **Interception**: Framework-specific patches capture tool inputs/outputs
+- **Invocation tracking**: A `ContextVar`-based invocation ID groups all tool calls within a single graph execution across steps
 - **Signing**: Each receipt is HMAC-signed (HKDF-derived keys) with a hash chain linking sequential calls
 - **Buffering**: Receipts are encrypted and stored locally in SQLite, flushed in the background
 - **Resilience**: Buffer survives process restarts; flush retries on transient failures
