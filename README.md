@@ -4,6 +4,8 @@ Agent Execution Verification System — transparent audit SDK for AI agents.
 
 Intercepts tool calls from supported frameworks, builds tamper-evident receipts (HMAC-signed, hash-chained), and sends them to the AEVS backend. Zero changes to your agent code.
 
+**[Documentation →](https://github.com/fetchai/AEVS-sdk/blob/main/docs/README.md)**
+
 ## Compatibility
 
 - Python 3.10+
