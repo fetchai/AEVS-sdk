@@ -7,7 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **ECDSA v2 signing** — new `aevs_sk2_` API keys use ECDSA P-256 / SHA-256 asymmetric signatures for both receipt payload signing and HTTP request authentication. The private key stays on the SDK host; the backend stores only the SPKI public key. Existing HMAC (`aevs_sk_`) keys continue to work; the SDK auto-detects the key type.
 - **Invocation ID tracking** — each `graph.invoke()` / `.ainvoke()` / `.stream()` / `.astream()` call on a LangGraph compiled graph automatically gets a unique `invocation_id` (UUID v4). All tool calls within that graph execution share the same ID in their receipts, regardless of how many steps they span. Subgraphs inherit the parent's ID. Direct tool calls outside a graph get `None`. Falls back to LangSmith `trace_id` when available.
+- **`proof_only` payload hashes** — `proof_only` receipts now include `input_hash` and `output_hash` fields containing SHA-256 hashes of the actual pre-redaction payloads. Verifiers can confirm distinct inputs/outputs without accessing the raw data.
 
 ## [0.2.1] - 2026-05-15
 
