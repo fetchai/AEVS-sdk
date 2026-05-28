@@ -10,6 +10,7 @@ from aevs.config import AEVSConfig
 from aevs.core.serializer import canonical_json, truncate_field
 from aevs.core.types import ReceiptPayload
 from aevs.crypto.chain import compute_chain_anchor, compute_receipt_hash
+from aevs.crypto.ecdsa import _private_key_from_hex, ecdsa_sign_payload_v2
 from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import compute_hmac
 
@@ -35,7 +36,12 @@ class ReceiptBuilder:
         self._prev_hash: str | None = prev_hash
         self._lock = threading.Lock()
 
-        self._payload_key = derive_key(config.key_secret, salt="aevs-payload-v1")
+        if config.auth_version == 2:
+            self._payload_key = None
+            self._ecdsa_private_key = _private_key_from_hex(config.key_secret.hex())
+        else:
+            self._payload_key = derive_key(config.key_secret, salt="aevs-payload-v1")
+            self._ecdsa_private_key = None
 
     def build(
         self,
@@ -109,13 +115,17 @@ class ReceiptBuilder:
                 "receipt_visibility": cfg.receipt_visibility,
             }
 
-            # Compute payload HMAC over all fields (before adding payload_hmac itself)
             receipt_bytes = canonical_json(
                 receipt,
                 float_handling=cfg.float_handling,
                 float_precision=cfg.float_precision,
             )
-            receipt["payload_hmac"] = compute_hmac(self._payload_key, receipt_bytes)
+            if cfg.auth_version == 2 and self._ecdsa_private_key is not None:
+                receipt["payload_hmac"] = ecdsa_sign_payload_v2(
+                    self._ecdsa_private_key, receipt_bytes,
+                )
+            else:
+                receipt["payload_hmac"] = compute_hmac(self._payload_key, receipt_bytes)
 
             # Update chain: hash the complete receipt (with payload_hmac) for next prev_hash
             full_bytes = canonical_json(

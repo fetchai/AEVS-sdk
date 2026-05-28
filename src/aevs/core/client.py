@@ -47,7 +47,11 @@ class AEVSClient:
 
     def __init__(self, config: AEVSConfig) -> None:
         self._config = config
-        self._signing_key = derive_key(config.key_secret, salt="aevs-request-v1")
+        self._signing_key = (
+            derive_key(config.key_secret, salt="aevs-request-v1")
+            if config.auth_version == 1
+            else None
+        )
         timeout = config.signing_timeout_ms / 1000.0
         self._client = httpx.Client(
             base_url=config.base_url,
