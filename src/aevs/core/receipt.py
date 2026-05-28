@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric import ec
+
 from aevs._version import __version__
 from aevs.config import AEVSConfig
 from aevs.core.serializer import canonical_json, truncate_field
@@ -37,12 +39,13 @@ class ReceiptBuilder:
         self._prev_hash: str | None = prev_hash
         self._lock = threading.Lock()
 
+        self._payload_key: bytes | None = None
+        self._ecdsa_private_key: ec.EllipticCurvePrivateKey | None = None
+
         if config.auth_version == 2:
-            self._payload_key = None
             self._ecdsa_private_key = _private_key_from_hex(config.key_secret.hex())
         else:
             self._payload_key = derive_key(config.key_secret, salt="aevs-payload-v1")
-            self._ecdsa_private_key = None
 
     def build(
         self,
@@ -145,6 +148,7 @@ class ReceiptBuilder:
                     self._ecdsa_private_key, receipt_bytes,
                 )
             else:
+                assert self._payload_key is not None
                 receipt["payload_hmac"] = compute_hmac(self._payload_key, receipt_bytes)
 
             # Update chain: hash the complete receipt (with payload_hmac) for next prev_hash

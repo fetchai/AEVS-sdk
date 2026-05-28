@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from datetime import datetime, timezone
 
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from aevs.config import AEVSConfig, _parse_api_key
 from aevs.core.signer import sign_request
-from aevs.crypto.ecdsa import _private_key_from_hex
 
 
 def _make_v2_config() -> tuple[AEVSConfig, str]:

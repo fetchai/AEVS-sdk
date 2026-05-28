@@ -8,7 +8,8 @@ from __future__ import annotations
 import hashlib
 
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec, utils as asym_utils
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import utils as asym_utils
 
 
 def _der_to_rs_hex(der_sig: bytes) -> str:
@@ -38,7 +39,7 @@ def ecdsa_sign_request_v2(
 ) -> str:
     """Sign ``"<ts>\\n<sha256_hex(body)>"`` with ECDSA P-256, return ``r||s`` hex."""
     payload_hash = hashlib.sha256(payload_bytes).hexdigest()
-    string_to_sign = f"{timestamp_str}\n{payload_hash}".encode("utf-8")
+    string_to_sign = f"{timestamp_str}\n{payload_hash}".encode()
     return ecdsa_sign(private_key, string_to_sign)
 
 
