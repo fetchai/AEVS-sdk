@@ -100,6 +100,27 @@ class TestFullFlow:
         assert body["error"] == "intentional error"
 
     @respx.mock
+    def test_proof_only_keeps_null_payload_with_distinct_hashes(self, tmp_path):
+        route = respx.post(TEST_RECEIPTS_URL).mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+
+        _configure(tmp_path, receipt_visibility="proof_only")
+        aevs.enable(frameworks=["langchain"])
+
+        result = multiply.invoke({"a": 6, "b": 7})
+        assert result == 42
+        aevs.flush()
+
+        assert route.called
+        body = json.loads(route.calls.last.request.content)
+        assert body["inputs"] is None
+        assert body["output"] is None
+        assert body["input_hash"] is not None
+        assert body["output_hash"] is not None
+        assert body["input_hash"] != body["output_hash"]
+
+    @respx.mock
     def test_multiple_calls_increment_seq(self, tmp_path):
         bodies: list[dict] = []
 

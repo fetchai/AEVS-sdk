@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import threading
 import uuid
 from datetime import datetime
@@ -76,7 +77,23 @@ class ReceiptBuilder:
             float_precision=cfg.float_precision,
         )
 
+        input_hash: str | None = None
+        output_hash: str | None = None
         if cfg.receipt_visibility == "proof_only":
+            input_hash = hashlib.sha256(
+                canonical_json(
+                    {"_": inputs},
+                    float_handling=cfg.float_handling,
+                    float_precision=cfg.float_precision,
+                )
+            ).hexdigest()
+            output_hash = hashlib.sha256(
+                canonical_json(
+                    {"_": output},
+                    float_handling=cfg.float_handling,
+                    float_precision=cfg.float_precision,
+                )
+            ).hexdigest()
             inputs = None
             output = None
 
@@ -114,6 +131,9 @@ class ReceiptBuilder:
                 "framework_version": framework_version,
                 "receipt_visibility": cfg.receipt_visibility,
             }
+            if cfg.receipt_visibility == "proof_only":
+                receipt["input_hash"] = input_hash
+                receipt["output_hash"] = output_hash
 
             receipt_bytes = canonical_json(
                 receipt,
