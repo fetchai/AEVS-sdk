@@ -1,5 +1,7 @@
 # Configuration
 
+> **Prerequisite:** [Getting Started](01-getting-started.md)
+
 All configuration is done through `aevs.configure()`. Call it before `aevs.enable()`.
 
 ## Basic setup
@@ -57,7 +59,7 @@ aevs.enable()
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `receipt_visibility` | `"private"` | Controls what data is in receipts. See [Receipt Verification](receipt-verification.md) for details. Options: `"public"`, `"private"`, `"proof_only"`. |
+| `receipt_visibility` | `"private"` | Controls what data is in receipts. See [Receipt Verification](06-receipt-verification.md) for details. Options: `"public"`, `"private"`, `"proof_only"`. |
 
 ### Serialization
 
@@ -122,5 +124,10 @@ The SDK validates your config and handles mistakes gracefully:
 
 ## Next steps
 
-- [Receipt Verification](receipt-verification.md) — understand `receipt_visibility` modes in detail
-- [Security & Privacy](security-and-privacy.md) — how your data is protected
+- [LangChain Integration](04-langchain-integration.md) — set up your LangChain/LangGraph agent
+- [MCP Integration](05-mcp-integration.md) — set up your MCP tools
+- [Receipt Verification](06-receipt-verification.md) — understand `receipt_visibility` modes in detail
+
+---
+
+[< Previous: Core Concepts](02-core-concepts.md) | [Next: LangChain Integration >](04-langchain-integration.md)

@@ -1,5 +1,7 @@
 # LangChain & LangGraph Integration
 
+> **Prerequisite:** [Getting Started](01-getting-started.md)
+
 AEVS integrates with LangChain and LangGraph by patching tool dispatch at the framework level. Your tools, agents, and LLM setup stay exactly the same.
 
 ## Install
@@ -150,12 +152,22 @@ for msg in response["messages"]:
 
 LangChain sometimes wraps tool inputs in a `ToolCall` envelope that includes extra metadata (name, id, type). The SDK strips this and records only the actual arguments dictionary. This keeps receipts clean and consistent regardless of how the tool was invoked.
 
+## Runnable examples
+
+- [examples/01_local_quickstart.py](../examples/01_local_quickstart.py) — minimal SDK loop with a LangChain tool
+- [examples/02_openai_agent.py](../examples/02_openai_agent.py) — full LangGraph agent with OpenAI
+- [examples/03_asi_agent.py](../examples/03_asi_agent.py) — same agent with ASI:One (provider-agnostic)
+
 ## LangSmith compatibility
 
 If you use LangSmith for tracing, AEVS works alongside it. When `langsmith` is installed and tracing is active, the SDK can use LangSmith's `trace_id` as a fallback invocation ID for tools called outside a compiled graph but inside a traced context.
 
 ## Next steps
 
-- [MCP Integration](mcp-integration.md) — if you also use MCP tools
-- [Receipt Verification](receipt-verification.md) — verify your receipts
-- [API Reference](api-reference.md) — full API details
+- [MCP Integration](05-mcp-integration.md) — if you also use MCP tools
+- [Receipt Verification](06-receipt-verification.md) — verify your receipts
+- [API Reference](08-api-reference.md) — full API details
+
+---
+
+[< Previous: Configuration](03-configuration.md) | [Next: MCP Integration >](05-mcp-integration.md)

@@ -148,6 +148,10 @@ No. The local buffer is on disk and crash-safe. When you restart and call `aevs.
 
 ## Next steps
 
-- [Configuration](configuration.md) — adjust settings to fix common issues
-- [Security & Privacy](security-and-privacy.md) — understand the security model
-- [API Reference](api-reference.md) — full function reference
+- [Configuration](03-configuration.md) — adjust settings to fix common issues
+- [Security & Privacy](07-security-and-privacy.md) — understand the security model
+- [API Reference](08-api-reference.md) — full function reference
+
+---
+
+[< Previous: API Reference](08-api-reference.md)

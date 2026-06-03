@@ -1,5 +1,7 @@
 # MCP Integration
 
+> **Prerequisite:** [Getting Started](01-getting-started.md)
+
 AEVS supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) by intercepting tool calls made through MCP client sessions.
 
 ## Install
@@ -103,6 +105,10 @@ If an MCP tool returns an error (`isError=True` in the result), the receipt reco
 
 Your agent continues normally — the SDK never raises exceptions from receipt processing.
 
+## Runnable examples
+
+See the [examples directory](../examples/) for runnable scripts. The [01_local_quickstart.py](../examples/01_local_quickstart.py) script demonstrates AEVS with a LangChain tool and can be adapted for MCP workflows.
+
 ## Using MCP with LangChain (langchain-mcp-adapters)
 
 If you use `langchain-mcp-adapters` to bridge MCP tools into LangChain, **both adapters might be active**. The SDK handles this automatically:
@@ -114,6 +120,10 @@ You do not need to do anything special — just enable AEVS normally and both fr
 
 ## Next steps
 
-- [LangChain Integration](langchain-integration.md) — if you also use LangChain
-- [Receipt Verification](receipt-verification.md) — verify your receipts
-- [Core Concepts](core-concepts.md) — understand sessions and hash chains
+- [LangChain Integration](04-langchain-integration.md) — if you also use LangChain
+- [Receipt Verification](06-receipt-verification.md) — verify your receipts
+- [Core Concepts](02-core-concepts.md) — understand sessions and hash chains
+
+---
+
+[< Previous: LangChain Integration](04-langchain-integration.md) | [Next: Receipt Verification >](06-receipt-verification.md)

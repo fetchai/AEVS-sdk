@@ -16,7 +16,7 @@ aevs.configure(
 )
 ```
 
-**Parameters:** See [Configuration](configuration.md) for the full list.
+**Parameters:** See [Configuration](03-configuration.md) for the full list.
 
 **Behavior:**
 - Validates credentials; logs a warning and enters no-op mode if invalid
@@ -180,6 +180,10 @@ These are defined in `aevs.exceptions`. Since v0.2.1, the SDK logs warnings inst
 
 ## Next steps
 
-- [Getting Started](getting-started.md) — see the API in action
-- [Configuration](configuration.md) — detailed config options
-- [Troubleshooting](troubleshooting.md) — common issues
+- [Getting Started](01-getting-started.md) — see the API in action
+- [Configuration](03-configuration.md) — detailed config options
+- [Troubleshooting](09-troubleshooting.md) — common issues
+
+---
+
+[< Previous: Security & Privacy](07-security-and-privacy.md) | [Next: Troubleshooting >](09-troubleshooting.md)

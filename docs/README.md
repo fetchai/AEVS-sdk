@@ -14,19 +14,28 @@ AEVS intercepts tool calls from your AI agent, builds tamper-evident receipts (H
 - **Teams building production agents** that need compliance or audit trails
 - **Anyone integrating AI agents** into workflows where trust and accountability matter
 
-## Documentation
+## Learning path
 
-| Page | What you will learn |
-|------|---------------------|
-| [Getting Started](getting-started.md) | Install the SDK, get credentials, and capture your first receipt in under 5 minutes |
-| [Core Concepts](core-concepts.md) | Understand receipts, hash chains, sessions, and invocation tracking — the building blocks of AEVS |
-| [Configuration](configuration.md) | Every configuration option explained with defaults and examples |
-| [LangChain & LangGraph Integration](langchain-integration.md) | How AEVS works with LangChain tools and LangGraph agents |
-| [MCP Integration](mcp-integration.md) | How AEVS works with Model Context Protocol (MCP) tools |
-| [Receipt Verification](receipt-verification.md) | Visibility modes, verifying receipts, and the public explorer |
-| [Security & Privacy](security-and-privacy.md) | Threat model, data handling, encryption, and privacy controls |
-| [API Reference](api-reference.md) | Complete reference for every public function, class, and option |
-| [Troubleshooting](troubleshooting.md) | Common issues, error messages, and how to fix them |
+### Start here
+
+- **[Getting Started](01-getting-started.md)** — install the SDK, get credentials, and capture your first receipt in under 5 minutes
+- **[Core Concepts](02-core-concepts.md)** — understand receipts, hash chains, sessions, and invocation tracking
+
+### Set up your framework (pick one or both)
+
+- **[LangChain & LangGraph](04-langchain-integration.md)** — if you use LangChain tools or LangGraph agents
+- **[MCP](05-mcp-integration.md)** — if you use Model Context Protocol tools
+
+### Go deeper
+
+- **[Configuration](03-configuration.md)** — every option explained with defaults, env vars, and production examples
+- **[Receipt Verification](06-receipt-verification.md)** — visibility modes, the explorer, and the verify API
+- **[Security & Privacy](07-security-and-privacy.md)** — cryptographic design, threat model, and data handling
+
+### Reference
+
+- **[API Reference](08-api-reference.md)** — complete reference for every public function, class, and option
+- **[Troubleshooting](09-troubleshooting.md)** — common issues, error messages, and how to fix them
 
 ## How it works (at a glance)
 

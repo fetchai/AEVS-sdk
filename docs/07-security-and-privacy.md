@@ -1,5 +1,7 @@
 # Security & Privacy
 
+> **Prerequisite:** [Core Concepts](02-core-concepts.md)
+
 AEVS is designed to be a transparent audit layer. This page covers how data is protected, what the SDK can and cannot guarantee, and how to control privacy.
 
 ## Cryptographic design
@@ -46,7 +48,7 @@ The same headers are used (`X-AEVS-Key-Id`, `X-AEVS-Timestamp`, `X-AEVS-Signatur
 
 ### Hash chains
 
-Each receipt includes the SHA-256 hash of the previous receipt. This creates a chain where any modification or deletion is detectable after the fact. See [Core Concepts](core-concepts.md) for details.
+Each receipt includes the SHA-256 hash of the previous receipt. This creates a chain where any modification or deletion is detectable after the fact. See [Core Concepts](02-core-concepts.md) for details.
 
 ### Request signing
 
@@ -177,6 +179,9 @@ Your API key secret is used for all cryptographic operations. Treat it like any 
 
 ## Next steps
 
-- [Receipt Verification](receipt-verification.md) — how to verify receipts
-- [Configuration](configuration.md) — all privacy-related settings
-- [Troubleshooting](troubleshooting.md) — common issues
+- [API Reference](08-api-reference.md) — complete function reference
+- [Troubleshooting](09-troubleshooting.md) — common issues and fixes
+
+---
+
+[< Previous: Receipt Verification](06-receipt-verification.md) | [Next: API Reference >](08-api-reference.md)

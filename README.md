@@ -107,7 +107,7 @@ aevs.get_reference_id(tool_call_id)      # lookup single reference ID
 aevs.is_healthy()                        # buffer write health check
 ```
 
-See the [full API reference](https://github.com/fetchai/AEVS-sdk/blob/main/docs/api-reference.md) for details.
+See the [full API reference](https://github.com/fetchai/AEVS-sdk/blob/main/docs/08-api-reference.md) for details.
 
 ## Receipt Visibility
 
@@ -137,15 +137,15 @@ See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/example
 
 | Page | Description |
 |------|-------------|
-| [Getting Started](https://github.com/fetchai/AEVS-sdk/blob/main/docs/getting-started.md) | Install, configure, and capture your first receipt |
-| [Core Concepts](https://github.com/fetchai/AEVS-sdk/blob/main/docs/core-concepts.md) | Receipts, hash chains, sessions, invocation tracking |
-| [Configuration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/configuration.md) | All configuration options with defaults |
-| [LangChain Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/langchain-integration.md) | LangChain / LangGraph guide |
-| [MCP Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/mcp-integration.md) | Model Context Protocol guide |
-| [Receipt Verification](https://github.com/fetchai/AEVS-sdk/blob/main/docs/receipt-verification.md) | Visibility modes and verification |
-| [Security & Privacy](https://github.com/fetchai/AEVS-sdk/blob/main/docs/security-and-privacy.md) | Threat model and data handling |
-| [API Reference](https://github.com/fetchai/AEVS-sdk/blob/main/docs/api-reference.md) | Complete function reference |
-| [Troubleshooting](https://github.com/fetchai/AEVS-sdk/blob/main/docs/troubleshooting.md) | Common issues and fixes |
+| [Getting Started](https://github.com/fetchai/AEVS-sdk/blob/main/docs/01-getting-started.md) | Install, configure, and capture your first receipt |
+| [Core Concepts](https://github.com/fetchai/AEVS-sdk/blob/main/docs/02-core-concepts.md) | Receipts, hash chains, sessions, invocation tracking |
+| [Configuration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/03-configuration.md) | All configuration options with defaults |
+| [LangChain Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/04-langchain-integration.md) | LangChain / LangGraph guide |
+| [MCP Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/05-mcp-integration.md) | Model Context Protocol guide |
+| [Receipt Verification](https://github.com/fetchai/AEVS-sdk/blob/main/docs/06-receipt-verification.md) | Visibility modes and verification |
+| [Security & Privacy](https://github.com/fetchai/AEVS-sdk/blob/main/docs/07-security-and-privacy.md) | Threat model and data handling |
+| [API Reference](https://github.com/fetchai/AEVS-sdk/blob/main/docs/08-api-reference.md) | Complete function reference |
+| [Troubleshooting](https://github.com/fetchai/AEVS-sdk/blob/main/docs/09-troubleshooting.md) | Common issues and fixes |
 
 ## Data & Privacy
 

@@ -1,5 +1,7 @@
 # Receipt Verification
 
+> **Prerequisite:** [Core Concepts](02-core-concepts.md)
+
 Every tool call produces a receipt with a unique `reference_id`. This page explains how to verify receipts, control what data they contain, and manage explorer visibility.
 
 ## `reference_id` vs `receipt_id`
@@ -143,6 +145,9 @@ When `receipt_visibility="proof_only"`, inputs and outputs are stripped from the
 
 ## Next steps
 
-- [Security & Privacy](security-and-privacy.md) — deeper dive into the security model
-- [Configuration](configuration.md) — other configuration options
-- [Core Concepts](core-concepts.md) — how hash chains work
+- [Security & Privacy](07-security-and-privacy.md) — deeper dive into the security model
+- [Configuration](03-configuration.md) — all privacy-related settings
+
+---
+
+[< Previous: MCP Integration](05-mcp-integration.md) | [Next: Security & Privacy >](07-security-and-privacy.md)

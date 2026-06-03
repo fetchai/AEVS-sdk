@@ -1,5 +1,7 @@
 # Core Concepts
 
+> **Prerequisite:** [Getting Started](01-getting-started.md)
+
 This page explains the key ideas behind AEVS. Understanding these will help you make the most of the SDK.
 
 ## Receipts
@@ -156,6 +158,10 @@ if not aevs.is_healthy():
 
 ## Next steps
 
-- [Configuration](configuration.md) — tune buffer size, flush intervals, and more
-- [Receipt Verification](receipt-verification.md) — visibility modes and how to verify receipts
-- [Security & Privacy](security-and-privacy.md) — how data is protected
+- [Configuration](03-configuration.md) — tune buffer size, flush intervals, and more
+- [LangChain Integration](04-langchain-integration.md) — set up your LangChain/LangGraph agent
+- [MCP Integration](05-mcp-integration.md) — set up your MCP tools
+
+---
+
+[< Previous: Getting Started](01-getting-started.md) | [Next: Configuration >](03-configuration.md)

@@ -66,7 +66,7 @@ aevs.enable()
 
 ## Step 4: Run your agent
 
-Once enabled, every tool call is intercepted automatically. Here is a minimal example using a LangChain tool:
+Once enabled, every tool call is intercepted automatically. Here is a minimal example using a LangChain tool (see [examples/01_local_quickstart.py](../examples/01_local_quickstart.py) for a full runnable version):
 
 ```python
 import aevs
@@ -80,7 +80,7 @@ def add(a: int, b: int) -> int:
 # Configure and start AEVS
 aevs.configure(
     api_key="aevs_sk_myKeyId_a1b2c3d4...",
-    agent_id="550e8400-e29b-41d4-a716-446655440000",
+    agent_id="550e8400-e29b-4....",
 )
 aevs.enable(frameworks=["langchain"])
 
@@ -109,7 +109,7 @@ Every receipt gets a `reference_id`. You can verify it through:
 GET https://api.aevs.fetch.ai/v1/receipts/verify/<reference_id>
 ```
 
-**Note:** Receipts only appear on the public explorer if the agent's dashboard visibility is enabled. See [Receipt Verification](receipt-verification.md) for details.
+**Note:** Receipts only appear on the public explorer if the agent's dashboard visibility is enabled. See [Receipt Verification](06-receipt-verification.md) for details.
 
 ## What happens if credentials are missing?
 
@@ -121,7 +121,11 @@ The SDK never crashes your agent. If credentials are missing or invalid:
 
 ## Next steps
 
-- [Core Concepts](core-concepts.md) — understand receipts, hash chains, and sessions
-- [Configuration](configuration.md) — explore all configuration options
-- [LangChain Integration](langchain-integration.md) — detailed LangChain/LangGraph guide
-- [MCP Integration](mcp-integration.md) — detailed MCP guide
+- [Core Concepts](02-core-concepts.md) — understand receipts, hash chains, and sessions
+- [Configuration](03-configuration.md) — explore all configuration options
+- [LangChain Integration](04-langchain-integration.md) — detailed LangChain/LangGraph guide
+- [MCP Integration](05-mcp-integration.md) — detailed MCP guide
+
+---
+
+[Next: Core Concepts >](02-core-concepts.md)
