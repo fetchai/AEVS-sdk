@@ -16,8 +16,8 @@ aevs.enable()  # must be called before any tool calls
 ```
 
 2. **Are credentials valid?** Check logs for warnings like:
-   - `"AEVS: Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret> AEVS will run in no-op mode — no receipts will be captured."` — your key must match `aevs_sk_<key_id>_<hex_secret>` with the hex secret being at least 32 characters
-   - `"AEVS: agent_id must be a valid UUID, got '...' AEVS will run in no-op mode — no receipts will be captured."` — must be a UUID with dashes like `550e8400-e29b-41d4-a716-446655440000`
+   - `"AEVS: Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret> or aevs_sk2_<key_id>_<hex_secret>"` — your key must match one of these formats with the hex secret being at least 32 characters
+   - `"AEVS: agent_id must be a valid UUID, got '...'"` — must be a UUID with dashes like `550e8400-e29b-41d4-a716-446655440000`
 
 3. **Is the framework detected?** If auto-detection fails, specify explicitly:
 
@@ -33,19 +33,20 @@ print(aevs.is_healthy())  # False means the buffer has repeated write failures
 
 ## "AEVS: invalid api_key format"
 
-Your API key must follow this exact format:
+Your API key must follow one of these formats:
 
 ```
-aevs_sk_<key_id>_<hex_secret>
+aevs_sk_<key_id>_<hex_secret>     (HMAC v1)
+aevs_sk2_<key_id>_<hex_secret>    (ECDSA v2)
 ```
 
-- `aevs_sk_` — fixed prefix
+- `aevs_sk_` or `aevs_sk2_` — prefix (determines auth version)
 - `<key_id>` — alphanumeric identifier
 - `<hex_secret>` — at least 32 hexadecimal characters (0-9, a-f)
 
 Example: `aevs_sk_myKey123_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4`
 
-Get a valid key at [aevs.fetch.ai](https://aevs.fetch.ai).
+The SDK auto-detects the auth version from the prefix. Get a valid key at [aevs.fetch.ai](https://aevs.fetch.ai).
 
 ## "AEVS: invalid agent_id"
 

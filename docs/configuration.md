@@ -114,7 +114,7 @@ aevs.configure(
 
 The SDK validates your config and handles mistakes gracefully:
 
-- **API key format**: Must match `aevs_sk_<key_id>_<hex_secret>` where the secret is at least 32 hex characters. Invalid key → no-op mode.
+- **API key format**: Must match `aevs_sk_<key_id>_<hex_secret>` (HMAC v1) or `aevs_sk2_<key_id>_<hex_secret>` (ECDSA v2) where the secret is at least 32 hex characters. Invalid key → no-op mode. The SDK auto-detects the auth version from the key prefix.
 - **Agent ID format**: Must be a canonical UUID with dashes (e.g., `550e8400-e29b-41d4-a716-446655440000`). A dashless UUID or one with a prefix will produce a helpful error message.
 - **Non-critical fields**: Invalid values (like negative `drain_interval_ms`) are auto-corrected to defaults with a warning.
 - **Reconfiguring while enabled**: Not allowed. Call `aevs.disable()` first.

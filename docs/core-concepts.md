@@ -12,12 +12,19 @@ A **receipt** is a signed record of a single tool call. Every time your agent ca
 | `inputs` | What was passed to the tool |
 | `output` | What the tool returned |
 | `status` | `"success"` or `"error"` |
+| `error` | Error message (only when `status` is `"error"`) |
 | `started_at` / `ended_at` | Timestamps (ISO 8601, UTC) |
 | `duration_ms` | How long the call took |
 | `reference_id` | Unique ID to verify this receipt later |
+| `session_id` | UUID for the current SDK session |
+| `invocation_id` | Groups tool calls within a single graph execution (LangGraph) |
 | `seq` | Sequence number within the session |
 | `prev_hash` | Hash of the previous receipt (forms the chain) |
-| `payload_hmac` | HMAC signature proving the receipt was not tampered with |
+| `run_id` / `parent_run_id` | Framework-assigned correlation IDs |
+| `sdk_version` | Version of the AEVS SDK that created the receipt |
+| `framework` / `framework_version` | Which framework was intercepted (e.g. `"langchain"`, `"mcp"`) |
+| `receipt_visibility` | Visibility mode set at creation time |
+| `payload_hmac` | Cryptographic signature proving the receipt was not tampered with |
 
 Receipts are the atomic unit of AEVS. One tool call = one receipt.
 
@@ -45,6 +52,21 @@ Receipt #1          Receipt #2          Receipt #3
 
 The very first receipt's `prev_hash` is a **chain anchor** — a value derived from your API key and session ID, so the chain is rooted in your identity.
 
+### Chain status
+
+The backend assigns a `chain_status` to each receipt when it is ingested:
+
+| Status | Meaning |
+|--------|---------|
+| `anchor` | First receipt in the session — chain starts here |
+| `linked` | `seq` is previous + 1 and `prev_hash` matches the hash of the prior receipt |
+| `mismatch` | `prev_hash` does not match the expected value |
+| `gap` | `seq` skipped one or more numbers (e.g. buffer eviction) |
+| `broken` | Chain integrity could not be verified |
+| `unverified` | Chain verification was not performed (e.g. missing session context) |
+
+You can see chain status on the explorer or in the verification API response.
+
 ## Sessions
 
 A **session** starts when you call `aevs.enable()` and ends when you call `aevs.disable()`. Each session gets a unique UUID.
@@ -68,9 +90,7 @@ Sessions help you group receipts:
 
 ## Invocation IDs
 
-> **Coming soon** — invocation ID tracking is not yet available in the current published SDK. It will be included in the next release.
-
-When using LangGraph agents, a single `graph.invoke()` call might trigger multiple tool calls across several steps. The SDK will group them with an **invocation ID**.
+When using LangGraph agents, a single `graph.invoke()` call might trigger multiple tool calls across several steps. The SDK groups them with an **invocation ID** — a UUID v4 that is shared by all tool calls within one graph execution.
 
 ```
 session_id:      |<------------ entire session ------------>|
@@ -78,12 +98,13 @@ invocation_id:   |<-- invoke 1 -->|    |<-- invoke 2 -->|
 tool calls:      | t1 | t2 | t3  |    | t4 | t5 |
 ```
 
-- All tools within one `graph.invoke()` will share the same `invocation_id`
+- All tools within one `graph.invoke()` / `.ainvoke()` / `.stream()` / `.astream()` share the same `invocation_id`
 - Subgraphs inherit the parent's invocation ID
 - Separate `graph.invoke()` calls get different IDs
 - Direct `tool.invoke()` calls (no graph) have `invocation_id = None`
+- When LangSmith tracing is active, the `trace_id` is used as a fallback invocation ID for tools called outside a compiled graph
 
-This will be fully automatic — no code changes needed.
+This is fully automatic — no code changes needed. The SDK patches `CompiledStateGraph` entry points when `langgraph` is installed.
 
 ## Reference IDs vs Receipt IDs
 

@@ -67,12 +67,18 @@ MCP tools can return different types of content. The SDK handles each type:
 
 | Content type | How it is recorded |
 |-------------|-------------------|
-| Text content | Stored as-is in the receipt |
-| Structured data (JSON) | Stored as the structured object |
+| `structuredContent` (JSON) | Stored as `{"structured": <object>}` |
 | Single text block | Flattened to a plain string |
+| Multiple text blocks | Stored as `{"content": [{"type": "text", "text": "..."}]}` |
 | Binary content (images, audio) | **Not stored raw** — replaced with a SHA-256 hash and byte count |
+| Resource content | Stored as `{"type": "resource", "uri": "..."}` (URI only) |
+| Resource link | Stored as `{"type": "resource_link", "uri": "..."}` |
 
-Binary content is never included in receipts directly. Instead, the receipt records a hash fingerprint so you can verify the content existed without transmitting large files.
+Binary content is never included in receipts directly. Instead, the receipt records a hash fingerprint (`_aevs_data_sha256` and `_aevs_data_bytes`) so you can verify the content existed without transmitting large files.
+
+## Experimental MCP Tasks API
+
+If an MCP tool returns a `CreateTaskResult` (from the experimental MCP tasks API), the SDK **skips receipt creation** for that call and logs a warning. Task results represent long-running task handles rather than completed tool outputs, so they are not yet supported in the receipt pipeline.
 
 ## Passing metadata
 

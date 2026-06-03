@@ -134,6 +134,8 @@ refs = aevs.get_reference_ids(clear=True)
 }
 ```
 
+> **Note:** The `invocation_id` is included in the receipt payload sent to the backend but is not part of the reference registry entries. Use the backend API to filter receipts by `invocation_id`.
+
 ### `aevs.get_reference_id(lookup_id)`
 
 Look up the `reference_id` for a given framework `run_id` or `tool_call_id`.
@@ -167,7 +169,7 @@ These are defined in `aevs.exceptions`. Since v0.2.1, the SDK logs warnings inst
 | `AEVSConfigError` | Invalid API key format, invalid agent ID |
 | `AEVSSerializationError` | Receipt serialization failure |
 | `AEVSBufferError` | Local buffer operations failure |
-| `AEVSAuthError` | HMAC signing or request authentication failure |
+| `AEVSAuthError` | Request signing or authentication failure (HMAC v1 or ECDSA v2) |
 
 ## Other exports
 

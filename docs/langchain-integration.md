@@ -107,9 +107,7 @@ asyncio.run(main())
 
 ## Invocation tracking with LangGraph
 
-> **Coming soon** — invocation ID tracking is not yet available in the current published SDK. It will be included in the next release.
-
-When using a compiled LangGraph (`StateGraph` or `create_agent`), the SDK will automatically track **invocation IDs**. All tool calls within a single `graph.invoke()` will share the same `invocation_id` in their receipts.
+When using a compiled LangGraph (`CompiledStateGraph` from `StateGraph` or `create_agent`), the SDK automatically tracks **invocation IDs**. All tool calls within a single graph execution share the same `invocation_id` in their receipts.
 
 ```python
 # First invoke — tools here will share invocation_id "aaa-..."
@@ -119,7 +117,7 @@ await agent.ainvoke({"messages": [("user", "question 1")]})
 await agent.ainvoke({"messages": [("user", "question 2")]})
 ```
 
-This will work across multi-step agents where the LLM calls several tools in sequence. Subgraphs (graph-in-graph) will inherit the parent's invocation ID.
+The SDK patches `CompiledStateGraph.invoke`, `.ainvoke`, `.stream`, and `.astream`. Each top-level call gets a new UUID v4 invocation ID that is propagated to all tool calls within that execution via a `ContextVar`.
 
 | Scenario | `invocation_id` |
 |----------|----------------|
@@ -128,6 +126,8 @@ This will work across multi-step agents where the LLM calls several tools in seq
 | `graph.batch([...])` | Each item gets its own ID |
 | Direct `tool.invoke()` (no graph) | `None` |
 | Separate `graph.invoke()` calls | Different UUIDs |
+
+You can filter receipts by `invocation_id` on the backend to see all tool calls from a single graph execution.
 
 ## Looking up receipts by tool call
 

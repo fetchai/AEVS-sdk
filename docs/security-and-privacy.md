@@ -4,7 +4,9 @@ AEVS is designed to be a transparent audit layer. This page covers how data is p
 
 ## Cryptographic design
 
-### HMAC signatures
+AEVS supports two authentication versions. New keys created with `SDK_AUTH_V2_ENABLED=true` use ECDSA P-256; existing HMAC keys continue to work during migration.
+
+### Auth v1: HMAC signatures (legacy `aevs_sk_` keys)
 
 Every receipt is signed using HMAC-SHA256. The signing key is derived from your API key secret using HKDF (HMAC-based Key Derivation Function) with a purpose-specific salt.
 
@@ -27,6 +29,21 @@ Different operations use different derived keys (different HKDF salts), so a key
 | Buffer encryption | `aevs-encrypt-v1` |
 | Chain anchor | `aevs-chain-v1\|{session_id}` |
 
+### Auth v2: ECDSA P-256 signatures (`aevs_sk2_` keys)
+
+When your backend issues an `aevs_sk2_` key, the SDK authenticates using ECDSA P-256 / SHA-256 asymmetric signatures instead of HMAC. The private key stays on the SDK host; the backend stores only the SPKI public key.
+
+```
+Private key (32-byte scalar, in aevs_sk2_<id>_<hex>)
+     │
+     ▼  ECDSA P-256 / SHA-256
+r || s signature (64 bytes → 128 hex chars)
+```
+
+The same headers are used (`X-AEVS-Key-Id`, `X-AEVS-Timestamp`, `X-AEVS-Signature`), and the `payload_hmac` JSON field carries the ECDSA payload signature. The backend dispatches verification by key type automatically.
+
+**Treat the `aevs_sk2_` key like an SSH private key.** It is shown once at generation; save it securely and never commit it to version control.
+
 ### Hash chains
 
 Each receipt includes the SHA-256 hash of the previous receipt. This creates a chain where any modification or deletion is detectable after the fact. See [Core Concepts](core-concepts.md) for details.
@@ -35,6 +52,7 @@ Each receipt includes the SHA-256 hash of the previous receipt. This creates a c
 
 When the SDK sends receipts to the backend, each HTTP request is signed:
 
+**v1 (HMAC):**
 ```
 Signature = HMAC-SHA256(
     key = derived_key("aevs-request-v1"),
@@ -42,7 +60,28 @@ Signature = HMAC-SHA256(
 )
 ```
 
+**v2 (ECDSA P-256):**
+```
+Signature = ECDSA-P256-SHA256(
+    private_key,
+    message = "{ISO timestamp}\n{SHA256(request body)}"
+)
+→ r || s hex (128 chars)
+```
+
 Headers sent: `X-AEVS-Key-Id`, `X-AEVS-Timestamp`, `X-AEVS-Signature`.
+
+### KMS receipt signing
+
+In production, every ingested receipt is additionally signed by a GCP Cloud KMS HSM key (ECDSA P-256 / SHA-256). The backend signs a canonical subset of the receipt containing `receipt_id`, `customer_id`, `agent_id`, `tool_id`, hashes, timestamps, and `status`.
+
+The KMS signature is stored alongside the receipt and returned on detail/verify endpoints. Anyone can independently verify receipt authenticity using the public key:
+
+```
+GET https://api.aevs.fetch.ai/v1/public/receipts/{receipt_id}/verify-kms
+```
+
+This endpoint performs the ECDSA verification server-side and returns a `KMSVerifyResponse` indicating whether the signature is valid.
 
 ## Data at rest
 
@@ -90,6 +129,8 @@ aevs.configure(
 
 Inputs and outputs are stripped (set to `null`) before the receipt is submitted. Only metadata (tool name, timing, status), signatures, and chain data are stored. No one can retrieve the payloads, not even the owner.
 
+However, the SDK computes `input_hash` and `output_hash` (SHA-256 of canonical JSON of the original data) and includes them in the receipt. This allows you to later prove that specific data was processed — if you retained the original inputs/outputs locally, you can hash them and compare against the receipt hashes to prove they match.
+
 ### Redact at the tool boundary
 
 For more granular control, sanitize data before it reaches the agent runtime:
@@ -132,6 +173,7 @@ Your API key secret is used for all cryptographic operations. Treat it like any 
 - Do not commit it to version control
 - Use environment variables in production
 - Rotate it if compromised (the buffer will detect the change)
+- For v2 keys (`aevs_sk2_`), the key contains your ECDSA private key — treat it like an SSH private key. The backend never stores it; losing it means you must regenerate.
 
 ## Next steps
 

@@ -23,7 +23,25 @@ Go to [explorer.aevs.fetch.ai](https://explorer.aevs.fetch.ai) and search by `re
 GET https://api.aevs.fetch.ai/v1/receipts/verify/<reference_id>
 ```
 
-Anyone with the `reference_id` can verify the receipt through the API — no API key needed.
+Anyone with the `reference_id` can verify the receipt through the API — no API key needed. The response includes the receipt metadata, hash chain status, and KMS signature information.
+
+### Public receipts API
+
+The backend also provides public endpoints for browsing receipts from agents with explorer listing enabled:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/public/receipts` | List public receipts (supports pagination and filters) |
+| GET | `/v1/public/receipts/stats` | System-wide statistics (total, public, private, proof_only, success, error counts) |
+| GET | `/v1/public/receipts/lookup?q=<id>` | Look up by `receipt_id` or `reference_id` |
+| GET | `/v1/public/receipts/{receipt_id}` | Full detail for a specific receipt |
+| GET | `/v1/public/receipts/{receipt_id}/verify-kms` | Verify KMS signature (ECDSA P-256) |
+
+These endpoints require no authentication. They only return receipts from agents where `receipts_public` is enabled on the dashboard.
+
+### KMS verification
+
+In production, every ingested receipt is additionally signed by a GCP Cloud KMS HSM key (ECDSA P-256). The `/verify-kms` endpoint performs cryptographic verification of this signature and returns the result, allowing independent proof that the receipt was stored by the AEVS backend.
 
 ### Getting reference IDs from your code
 
@@ -115,8 +133,13 @@ When you verify a receipt, you confirm:
 2. **Integrity** — the receipt has not been modified since it was created
 3. **Ordering** — the receipt's position in the hash chain is valid (it follows the correct previous receipt)
 4. **Timing** — when the tool call started and ended
+5. **Chain status** — the backend reports whether the receipt is `anchor`, `linked`, `mismatch`, `gap`, `broken`, or `unverified` in its session chain
 
 Verification does **not** prove that the tool actually performed the claimed action on an external system. It proves the SDK recorded the call and its result as reported by the tool.
+
+### `proof_only` hashes
+
+When `receipt_visibility="proof_only"`, inputs and outputs are stripped from the receipt before submission. However, the SDK computes `input_hash` and `output_hash` (SHA-256 of canonical JSON) and includes them in the receipt. This allows you to later prove that specific data was processed without the data ever leaving your host.
 
 ## Next steps
 
