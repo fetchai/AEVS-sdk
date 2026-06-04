@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="AEVS mark">
+  <title>AEVS — Ledger mark (amber, used on dark site)</title>
+  <rect width="64" height="64" fill="#000000"></rect>
+  <line x1="0" y1="32" x2="64" y2="32" stroke="#ffb547" stroke-opacity="0.35" stroke-width="1"></line>
+  <circle cx="58" cy="6" r="2.5" fill="#ffb547"></circle>
+  <text x="32" y="32" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono, ui-monospace, Menlo, monospace" font-weight="700" font-size="30" letter-spacing="-0.04em" fill="#ffb547">A</text>
+</svg>
