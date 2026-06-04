@@ -9,9 +9,10 @@ from tests.conftest import TEST_AGENT_ID, TEST_API_KEY, TEST_KEY_ID, TEST_KEY_SE
 
 class TestParseApiKey:
     def test_valid_key(self):
-        key_id, secret = _parse_api_key(TEST_API_KEY)
+        key_id, secret, ver = _parse_api_key(TEST_API_KEY)
         assert key_id == TEST_KEY_ID
         assert secret == TEST_KEY_SECRET
+        assert ver == 1
 
     def test_rejects_empty(self):
         with pytest.raises(AEVSConfigError, match="Invalid API key format"):

@@ -28,9 +28,10 @@ class TestParseApiKeyHexValidation:
             _parse_api_key("aevs_sk_mykey_ab")
 
     def test_exactly_min_length_accepted(self):
-        key_id, secret = _parse_api_key("aevs_sk_mykey_" + "ab" * 16)
+        key_id, secret, ver = _parse_api_key("aevs_sk_mykey_" + "ab" * 16)
         assert key_id == "mykey"
         assert secret == b"\xab" * 16
+        assert ver == 1
 
 
 class TestConfigValidationEdgeCases:

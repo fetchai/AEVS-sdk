@@ -15,7 +15,8 @@ from aevs.exceptions import AEVSConfigError
 
 logger = logging.getLogger("aevs")
 
-_API_KEY_RE = re.compile(r"^aevs_sk_([a-zA-Z0-9]+)_([a-fA-F0-9]+)$")
+_API_KEY_RE_V1 = re.compile(r"^aevs_sk_([a-zA-Z0-9]+)_([a-fA-F0-9]+)$")
+_API_KEY_RE_V2 = re.compile(r"^aevs_sk2_([a-zA-Z0-9]+)_([a-fA-F0-9]+)$")
 
 _VALID_FLOAT_HANDLING = {"decimal_string", "raise"}
 _VALID_RECEIPT_VISIBILITY = {"public", "private", "proof_only"}
@@ -29,6 +30,7 @@ class AEVSConfig:
     key_id: str
     key_secret: bytes
     agent_id: str
+    auth_version: int = 1
     base_url: str = "https://api.aevs.fetch.ai/v1"
     signing_timeout_ms: int = 2000
     float_handling: str = "decimal_string"
@@ -51,12 +53,23 @@ class AEVSConfig:
 _MIN_SECRET_HEX_CHARS = 32  # 16 bytes = 128 bits minimum entropy
 
 
-def _parse_api_key(api_key: str) -> tuple[str, bytes]:
-    """Extract key_id and key_secret from the API key string."""
-    match = _API_KEY_RE.match(api_key)
+def _parse_api_key(api_key: str) -> tuple[str, bytes, int]:
+    """Extract key_id, key_secret, and auth_version from the API key string.
+
+    Returns ``(key_id, key_secret_bytes, auth_version)`` where
+    *auth_version* is 1 for ``aevs_sk_`` keys and 2 for ``aevs_sk2_`` keys.
+    """
+    match = _API_KEY_RE_V2.match(api_key)
+    if match:
+        auth_version = 2
+    else:
+        match = _API_KEY_RE_V1.match(api_key)
+        auth_version = 1
+
     if not match:
         raise AEVSConfigError(
-            "Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret>"
+            "Invalid API key format. Expected: aevs_sk_<key_id>_<hex_secret> "
+            "or aevs_sk2_<key_id>_<hex_secret>"
         )
     key_id = match.group(1)
     hex_secret = match.group(2)
@@ -70,7 +83,7 @@ def _parse_api_key(api_key: str) -> tuple[str, bytes]:
         key_secret = bytes.fromhex(hex_secret)
     except ValueError as exc:
         raise AEVSConfigError(f"API key secret is not valid hex: {exc}") from exc
-    return key_id, key_secret
+    return key_id, key_secret, auth_version
 
 
 def _validate_agent_id(agent_id: str) -> None:
@@ -257,7 +270,7 @@ def configure(
         return
 
     try:
-        key_id, key_secret = _parse_api_key(resolved_key)
+        key_id, key_secret, auth_version = _parse_api_key(resolved_key)
         _validate_agent_id(resolved_agent_id)
     except AEVSConfigError as exc:
         logger.warning(
@@ -273,6 +286,7 @@ def configure(
         key_id=key_id,
         key_secret=key_secret,
         agent_id=resolved_agent_id,
+        auth_version=auth_version,
         base_url=base_url.rstrip("/"),
         signing_timeout_ms=signing_timeout_ms,
         float_handling=float_handling,

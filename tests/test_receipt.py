@@ -4,7 +4,7 @@ from aevs._version import __version__
 from aevs.config import configure, get_config
 from aevs.core.receipt import ReceiptBuilder
 from aevs.core.serializer import canonical_json
-from aevs.crypto.chain import compute_chain_anchor
+from aevs.crypto.chain import compute_chain_anchor, compute_receipt_hash
 from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import verify_hmac
 from tests.conftest import TEST_AGENT_ID, TEST_API_KEY
@@ -146,6 +146,39 @@ class TestReceiptBuilder:
         assert receipt["status"] == "error"
         assert receipt["error"] == "ConnectionTimeout"
         assert receipt["output"] is None
+
+    def test_proof_only_redacts_payload_but_keeps_pre_redaction_hashes(self):
+        builder = _make_builder(receipt_visibility="proof_only")
+        receipt = _build_one(builder, inputs={"query": "weather NYC"}, output={"result": "Sunny"})
+        cfg = get_config()
+
+        expected_input_hash = compute_receipt_hash(
+            canonical_json(
+                {"_": {"query": "weather NYC"}},
+                float_handling=cfg.float_handling,
+                float_precision=cfg.float_precision,
+            )
+        )
+        expected_output_hash = compute_receipt_hash(
+            canonical_json(
+                {"_": {"result": "Sunny"}},
+                float_handling=cfg.float_handling,
+                float_precision=cfg.float_precision,
+            )
+        )
+
+        assert receipt["inputs"] is None
+        assert receipt["output"] is None
+        assert receipt["input_hash"] == expected_input_hash
+        assert receipt["output_hash"] == expected_output_hash
+
+    def test_proof_only_input_output_hashes_change_with_payloads(self):
+        builder = _make_builder(receipt_visibility="proof_only")
+        r1 = _build_one(builder, inputs={"query": "a"}, output={"result": "x"})
+        r2 = _build_one(builder, inputs={"query": "b"}, output={"result": "y"})
+
+        assert r1["input_hash"] != r2["input_hash"]
+        assert r1["output_hash"] != r2["output_hash"]
 
     def test_agent_id(self):
         custom_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab"
