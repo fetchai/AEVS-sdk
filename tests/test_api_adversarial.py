@@ -24,8 +24,14 @@ from tests.conftest import (
     TEST_API_KEY,
     TEST_BASE_URL,
     TEST_KEY_SECRET,
+    TEST_RECEIPTS_BATCH_URL,
     TEST_RECEIPTS_URL,
 )
+
+
+def _mock_no_batch():
+    """Mock the batch endpoint to return 404 so the drainer falls back to one-by-one."""
+    respx.post(TEST_RECEIPTS_BATCH_URL).mock(return_value=httpx.Response(404))
 
 FIXED_START = datetime(2026, 4, 1, 12, 0, 0, tzinfo=timezone.utc)
 FIXED_END = datetime(2026, 4, 1, 12, 0, 1, tzinfo=timezone.utc)
@@ -284,6 +290,7 @@ class TestEnableFailurePaths:
             base_url=TEST_BASE_URL,
         )
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200))
         api.enable(frameworks=[])
@@ -322,6 +329,7 @@ class TestEnableFailurePaths:
             _os.remove(path)        # actually delete it on first call
             raise FileNotFoundError("already gone on second hypothetical call")
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200))
         with patch("aevs._api.os.remove", side_effect=FileNotFoundError("already gone")):
@@ -357,6 +365,7 @@ class TestEnableFailurePaths:
         def broken_remove(path):
             raise PermissionError("can't remove")
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200))
         with patch("aevs._api.os.remove", side_effect=broken_remove):
@@ -389,6 +398,7 @@ class TestEnableFailurePaths:
             base_url=TEST_BASE_URL,
         )
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200))
         api.enable(frameworks=[])
@@ -438,6 +448,7 @@ class TestChainResumeAfterDrain:
         from aevs.core.buffer import LocalBuffer
         from aevs.crypto.chain import compute_chain_anchor
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
@@ -475,12 +486,15 @@ class TestChainResumeAfterDrain:
             self._trigger_one_call()
             api.flush()
 
-            calls = list(respx.calls)
-            assert len(calls) == 2, (
-                f"expected one POST per cycle; got {len(calls)}"
+            receipt_calls = [
+                c for c in respx.calls
+                if c.request.url.path == "/v1/receipts"
+            ]
+            assert len(receipt_calls) == 2, (
+                f"expected one POST per cycle; got {len(receipt_calls)}"
             )
-            r1 = json.loads(calls[0].request.content)
-            r2 = json.loads(calls[1].request.content)
+            r1 = json.loads(receipt_calls[0].request.content)
+            r2 = json.loads(receipt_calls[1].request.content)
 
             # Each cycle has its own session_id and its own anchor.
             assert r1["session_id"] != r2["session_id"], (
@@ -514,6 +528,7 @@ class TestChainResumeAfterDrain:
         # Simulate a crash by NOT mocking POST and NOT calling flush —
         # the disable() final-flush will fail to send and pending
         # receipts remain in the buffer.
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("down"))
         configure(
             api_key=TEST_API_KEY,
@@ -541,6 +556,7 @@ class TestChainResumeAfterDrain:
             buf.close()
 
         # Recovery: now the backend is reachable, capture every POST.
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
 
         api.enable(frameworks=[])
@@ -548,11 +564,13 @@ class TestChainResumeAfterDrain:
             self._trigger_one_call()
             api.flush()
 
-            calls = [json.loads(c.request.content) for c in respx.calls]
+            calls = [json.loads(c.request.content) for c in respx.calls
+                     if c.request.url.path == "/v1/receipts"]
             successful = [
                 json.loads(c.request.content)
                 for c in respx.calls
                 if c.has_response and c.response.status_code == 200
+                and c.request.url.path == "/v1/receipts"
             ]
             assert len(successful) == 3, (
                 f"expected 3 successful POSTs (2 pre-crash + 1 post); "
@@ -587,6 +605,7 @@ class TestChainResumeAfterDrain:
         from aevs.core.buffer import LocalBuffer
 
         # Cycle 1: full clean drain under session A.
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
@@ -625,6 +644,7 @@ class TestChainResumeAfterDrain:
             buf.close()
 
         # Cycle 2: enable session B, store 3 receipts (< 5), then crash.
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(side_effect=httpx.ConnectError("crashed"))
 
         api.enable(frameworks=[])
@@ -660,6 +680,7 @@ class TestChainResumeAfterDrain:
             buf.close()
 
         # Cycle 3: recover, flush, verify the wire.
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
 
         api.enable(frameworks=[])
@@ -671,6 +692,7 @@ class TestChainResumeAfterDrain:
                 json.loads(c.request.content)
                 for c in respx.calls
                 if c.has_response and c.response.status_code == 200
+                and c.request.url.path == "/v1/receipts"
             ]
             # Cycle 1's POSTs also returned 200, so filter by session.
             post_crash = [r for r in successful if r["session_id"] != session_a]
@@ -700,6 +722,7 @@ class TestChainResumeAfterDrain:
         from aevs.core.buffer import LocalBuffer
         from aevs.crypto.chain import compute_chain_anchor
 
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(return_value=httpx.Response(200))
         configure(
             api_key=TEST_API_KEY,
@@ -737,8 +760,11 @@ class TestChainResumeAfterDrain:
             self._trigger_one_call()
             api.flush()
 
-            calls = list(respx.calls)
-            r2 = json.loads(calls[-1].request.content)
+            receipt_calls = [
+                c for c in respx.calls
+                if c.request.url.path == "/v1/receipts"
+            ]
+            r2 = json.loads(receipt_calls[-1].request.content)
             assert r2["seq"] == 1
             assert r2["prev_hash"] == compute_chain_anchor(rotated_secret, r2["session_id"]), (
                 "rotated key must start its own chain at its own anchor"

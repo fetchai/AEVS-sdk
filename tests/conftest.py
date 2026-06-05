@@ -15,6 +15,7 @@ TEST_AGENT_ID = "12345678-1234-4234-8234-123456789abc"
 #  - respx routes use TEST_RECEIPTS_URL so the mock and the client agree
 TEST_BASE_URL = "http://localhost:8000/v1"
 TEST_RECEIPTS_URL = f"{TEST_BASE_URL}/receipts"
+TEST_RECEIPTS_BATCH_URL = f"{TEST_BASE_URL}/receipts/batch"
 
 
 @pytest.fixture(autouse=True)

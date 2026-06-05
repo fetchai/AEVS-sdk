@@ -35,8 +35,14 @@ from tests.conftest import (
     TEST_API_KEY,
     TEST_BASE_URL,
     TEST_KEY_SECRET,
+    TEST_RECEIPTS_BATCH_URL,
     TEST_RECEIPTS_URL,
 )
+
+
+def _mock_no_batch():
+    """Mock the batch endpoint to return 404 so the drainer falls back to one-by-one."""
+    respx.post(TEST_RECEIPTS_BATCH_URL).mock(return_value=httpx.Response(404))
 
 
 def _store_dict(buf: LocalBuffer, d: dict, *, prev_hash: str = "h") -> None:
@@ -558,6 +564,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_nan_output_does_not_crash(self, tmp_path):
+        _mock_no_batch()
         route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -576,6 +583,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_huge_output_does_not_crash(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -592,6 +600,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_backend_garbage_response(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200, content=b"NOT JSON {{{")
         )
@@ -601,6 +610,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_backend_timeout(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             side_effect=httpx.ReadTimeout("timeout")
         )
@@ -610,6 +620,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_backend_connection_reset(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             side_effect=httpx.RemoteProtocolError("connection reset")
         )
@@ -620,6 +631,7 @@ class TestAgentCrashResilience:
     @respx.mock
     def test_corrupted_builder_does_not_crash(self, tmp_path):
         """Even if SDK internals are corrupted, the agent must survive."""
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -631,6 +643,7 @@ class TestAgentCrashResilience:
 
     @respx.mock
     def test_inf_output_does_not_crash(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -655,6 +668,7 @@ class TestThreadSafety:
     @respx.mock
     def test_concurrent_tool_calls(self, tmp_path):
         """Many threads calling tools must not corrupt seq or crash."""
+        _mock_no_batch()
         bodies: list[dict] = []
         lock = threading.Lock()
 
@@ -687,6 +701,7 @@ class TestThreadSafety:
     @respx.mock
     def test_disable_during_tool_calls(self, tmp_path):
         """disable() while tool calls are in flight must not crash."""
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )

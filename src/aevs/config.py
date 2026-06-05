@@ -40,6 +40,7 @@ class AEVSConfig:
     max_buffer_records: int = 10_000
     drain_interval_ms: int = 5_000
     max_reference_entries: int = 1_000
+    max_batch_size: int = 50
     receipt_visibility: str = "private"
 
     def __repr__(self) -> str:
@@ -188,6 +189,21 @@ def _sanitize_config(config: AEVSConfig) -> AEVSConfig:
         )
         corrections["max_reference_entries"] = 1_000
 
+    if config.max_batch_size <= 0:
+        logger.warning(
+            "AEVS: max_batch_size must be positive (got %d). "
+            "Using default value 50.",
+            config.max_batch_size,
+        )
+        corrections["max_batch_size"] = 50
+    elif config.max_batch_size > 100:
+        logger.warning(
+            "AEVS: max_batch_size exceeds backend limit of 100 (got %d). "
+            "Capping at 100.",
+            config.max_batch_size,
+        )
+        corrections["max_batch_size"] = 100
+
     if config.receipt_visibility not in _VALID_RECEIPT_VISIBILITY:
         logger.warning(
             "AEVS: receipt_visibility must be one of %s, got %r. "
@@ -221,6 +237,7 @@ def configure(
     max_buffer_records: int = 10_000,
     drain_interval_ms: int = 5_000,
     max_reference_entries: int = 1_000,
+    max_batch_size: int = 50,
     receipt_visibility: str = "private",
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
@@ -296,6 +313,7 @@ def configure(
         max_buffer_records=max_buffer_records,
         drain_interval_ms=drain_interval_ms,
         max_reference_entries=max_reference_entries,
+        max_batch_size=max_batch_size,
         receipt_visibility=resolved_visibility.lower(),
     )
     config = _sanitize_config(config)

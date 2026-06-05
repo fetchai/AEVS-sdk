@@ -11,6 +11,8 @@ import threading
 import time
 from typing import TYPE_CHECKING
 
+import httpx
+
 if TYPE_CHECKING:
     from aevs.core.buffer import LocalBuffer
     from aevs.core.client import AEVSClient
@@ -50,6 +52,7 @@ class BufferDrainer:
         client: AEVSClient,
         *,
         interval_ms: int = 5_000,
+        max_batch_size: int = 50,
     ) -> None:
         self._buffer = buffer
         self._client = client
@@ -59,6 +62,8 @@ class BufferDrainer:
         self._stop_event = threading.Event()
         self._drain_lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._max_batch_size = max_batch_size
+        self._batch_supported = True
 
     @property
     def _interval(self) -> float:
@@ -127,7 +132,7 @@ class BufferDrainer:
                 logger.error("AEVS: drainer cycle failed", exc_info=True)
 
     def _drain_once(self) -> bool:
-        """Send pending receipts to the backend, stop on first persistent failure.
+        """Send pending receipts to the backend via batch or one-by-one.
 
         Returns True if all receipts sent (or none pending), False otherwise.
         """
@@ -140,8 +145,108 @@ class BufferDrainer:
         if not pending:
             return True
 
+        if self._batch_supported and self._max_batch_size > 0:
+            return self._drain_batch(pending)
+
+        return self._drain_one_by_one(pending)
+
+    def _drain_batch(self, pending: list[tuple[int, bytes]]) -> bool:
+        """Send pending receipts in batch chunks."""
+        all_sent = True
+        chunk_start = 0
+
+        while chunk_start < len(pending):
+            chunk = pending[chunk_start : chunk_start + self._max_batch_size]
+            chunk_seqs = [seq for seq, _ in chunk]
+            chunk_payloads = [payload for _, payload in chunk]
+
+            sent = False
+            for attempt in range(_MAX_RETRIES):
+                try:
+                    response = self._client.send_receipts_batch(chunk_payloads)
+                    data = response.json()
+                    results = data.get("results", [])
+
+                    if len(results) != len(chunk):
+                        logger.warning(
+                            "AEVS: batch response length mismatch (expected %d, got %d), "
+                            "falling back to one-by-one for this cycle",
+                            len(chunk), len(results),
+                        )
+                        remaining = pending[chunk_start:]
+                        return self._drain_one_by_one(remaining)
+
+                    failed_at = data.get("failed_at_index")
+                    flushed_seqs: list[int] = []
+                    for i, result in enumerate(results):
+                        status = result.get("status")
+                        if status in ("created", "duplicate"):
+                            flushed_seqs.append(chunk_seqs[i])
+                        elif status == "error":
+                            break
+
+                    if flushed_seqs:
+                        self._mark_flushed(flushed_seqs)
+
+                    if failed_at is not None:
+                        logger.warning(
+                            "AEVS: batch partial failure at index %d, "
+                            "remainder will retry next cycle",
+                            failed_at,
+                        )
+                        return False
+
+                    sent = True
+                    break
+
+                except httpx.HTTPStatusError as exc:
+                    status_code = exc.response.status_code
+                    if status_code in (404, 405):
+                        logger.info(
+                            "AEVS: batch endpoint not found (%d), "
+                            "permanently falling back to one-by-one",
+                            status_code,
+                        )
+                        self._batch_supported = False
+                        return self._drain_one_by_one(pending)
+                    if status_code == 413:
+                        logger.warning(
+                            "AEVS: batch too large (413), "
+                            "falling back to one-by-one for this cycle",
+                        )
+                        remaining = pending[chunk_start:]
+                        return self._drain_one_by_one(remaining)
+                    if attempt < _MAX_RETRIES - 1:
+                        time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                    else:
+                        logger.debug(
+                            "AEVS: batch send failed after %d attempts, "
+                            "will retry next cycle",
+                            _MAX_RETRIES,
+                        )
+                except Exception:
+                    if attempt < _MAX_RETRIES - 1:
+                        time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                    else:
+                        logger.debug(
+                            "AEVS: batch send failed after %d attempts, "
+                            "will retry next cycle",
+                            _MAX_RETRIES,
+                        )
+
+            if not sent:
+                all_sent = False
+                break
+
+            chunk_start += len(chunk)
+
+        return all_sent
+
+    def _drain_one_by_one(self, pending: list[tuple[int, bytes]]) -> bool:
+        """Send receipts individually — fallback path."""
         flushed_seqs: list[int] = []
         all_sent = True
+
         for seq, payload_bytes in pending:
             sent = False
             for attempt in range(_MAX_RETRIES):
@@ -165,13 +270,17 @@ class BufferDrainer:
                 break
 
         if flushed_seqs:
-            try:
-                self._buffer.mark_flushed(flushed_seqs)
-                self._buffer.prune_flushed()
-            except Exception:
-                logger.error(
-                    "AEVS: drainer failed to mark/prune flushed receipts",
-                    exc_info=True,
-                )
+            self._mark_flushed(flushed_seqs)
 
         return all_sent
+
+    def _mark_flushed(self, seqs: list[int]) -> None:
+        """Mark sequences as flushed and prune."""
+        try:
+            self._buffer.mark_flushed(seqs)
+            self._buffer.prune_flushed()
+        except Exception:
+            logger.error(
+                "AEVS: drainer failed to mark/prune flushed receipts",
+                exc_info=True,
+            )
