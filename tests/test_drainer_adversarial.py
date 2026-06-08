@@ -8,7 +8,7 @@ batch sending behavior.
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 import httpx
 

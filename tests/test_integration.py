@@ -18,7 +18,13 @@ from langchain_core.tools import tool
 import aevs
 import aevs._api as _api_mod
 from aevs.config import reset_config
-from tests.conftest import TEST_AGENT_ID, TEST_API_KEY, TEST_BASE_URL, TEST_RECEIPTS_URL, TEST_RECEIPTS_BATCH_URL
+from tests.conftest import (
+    TEST_AGENT_ID,
+    TEST_API_KEY,
+    TEST_BASE_URL,
+    TEST_RECEIPTS_BATCH_URL,
+    TEST_RECEIPTS_URL,
+)
 
 
 def _mock_no_batch():
