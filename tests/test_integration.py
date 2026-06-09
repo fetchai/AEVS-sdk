@@ -18,7 +18,18 @@ from langchain_core.tools import tool
 import aevs
 import aevs._api as _api_mod
 from aevs.config import reset_config
-from tests.conftest import TEST_AGENT_ID, TEST_API_KEY, TEST_BASE_URL, TEST_RECEIPTS_URL
+from tests.conftest import (
+    TEST_AGENT_ID,
+    TEST_API_KEY,
+    TEST_BASE_URL,
+    TEST_RECEIPTS_BATCH_URL,
+    TEST_RECEIPTS_URL,
+)
+
+
+def _mock_no_batch():
+    """Mock the batch endpoint to return 404 so the drainer falls back to one-by-one."""
+    respx.post(TEST_RECEIPTS_BATCH_URL).mock(return_value=httpx.Response(404))
 
 
 @tool
@@ -55,6 +66,7 @@ def _configure(tmp_path, **kwargs):
 class TestFullFlow:
     @respx.mock
     def test_tool_call_sends_receipt(self, tmp_path):
+        _mock_no_batch()
         route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
@@ -82,6 +94,7 @@ class TestFullFlow:
 
     @respx.mock
     def test_error_tool_sends_error_receipt(self, tmp_path):
+        _mock_no_batch()
         route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -101,6 +114,7 @@ class TestFullFlow:
 
     @respx.mock
     def test_proof_only_keeps_null_payload_with_distinct_hashes(self, tmp_path):
+        _mock_no_batch()
         route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
@@ -122,6 +136,7 @@ class TestFullFlow:
 
     @respx.mock
     def test_multiple_calls_increment_seq(self, tmp_path):
+        _mock_no_batch()
         bodies: list[dict] = []
 
         def capture_request(request: httpx.Request) -> httpx.Response:
@@ -144,6 +159,7 @@ class TestFullFlow:
 
     @respx.mock
     def test_chain_links_across_calls(self, tmp_path):
+        _mock_no_batch()
         bodies: list[dict] = []
 
         def capture(request: httpx.Request) -> httpx.Response:
@@ -169,6 +185,7 @@ class TestBufferFirst:
     @respx.mock
     def test_receipt_buffered_immediately(self, tmp_path):
         """Tool call writes to buffer even when backend is healthy."""
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -182,6 +199,7 @@ class TestBufferFirst:
 
     @respx.mock
     def test_receipt_buffered_when_backend_down(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(500)
         )
@@ -195,6 +213,7 @@ class TestBufferFirst:
 
     @respx.mock
     def test_flush_sends_buffered_receipts(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(503)
         )
@@ -209,6 +228,7 @@ class TestBufferFirst:
 
         # Backend comes back
         respx.reset()
+        _mock_no_batch()
         flush_route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -221,6 +241,7 @@ class TestBufferFirst:
     @respx.mock
     def test_flush_stops_on_failure_and_retries(self, tmp_path):
         """Flush sends in order; persistent backend failure (after retries) stops the cycle."""
+        _mock_no_batch()
         call_count = 0
 
         def fail_second(request: httpx.Request) -> httpx.Response:
@@ -256,6 +277,7 @@ class TestIdempotency:
 
     @respx.mock
     def test_disable_restores(self, tmp_path):
+        _mock_no_batch()
         route = respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )
@@ -277,6 +299,7 @@ class TestSessionContinuity:
     @respx.mock
     def test_seq_resumes_from_buffer(self, tmp_path):
         """Second enable() starts seq after the buffer's max seq."""
+        _mock_no_batch()
         _configure(tmp_path)
         aevs.enable(frameworks=["langchain"])
 
@@ -309,6 +332,7 @@ class TestSessionContinuity:
     @respx.mock
     def test_hash_chain_continues_across_sessions(self, tmp_path):
         """The prev_hash in session 2 links to the last receipt of session 1."""
+        _mock_no_batch()
         _configure(tmp_path)
         aevs.enable(frameworks=["langchain"])
         multiply.invoke({"a": 1, "b": 1})
@@ -345,6 +369,7 @@ class TestSessionContinuity:
     @respx.mock
     def test_fresh_buffer_starts_at_seq_1(self, tmp_path):
         """With no prior buffer, seq starts at 1 as before."""
+        _mock_no_batch()
         bodies: list[dict] = []
 
         def capture(request: httpx.Request) -> httpx.Response:
@@ -364,6 +389,7 @@ class TestSessionContinuity:
 class TestNeverBreakAgent:
     @respx.mock
     def test_connection_error_still_returns(self, tmp_path):
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             side_effect=httpx.ConnectError("connection refused")
         )
@@ -377,6 +403,7 @@ class TestNeverBreakAgent:
     @respx.mock
     def test_serialization_error_does_not_crash_agent(self, tmp_path):
         """If receipt building or serialization fails, the tool still returns."""
+        _mock_no_batch()
         respx.post(TEST_RECEIPTS_URL).mock(
             return_value=httpx.Response(200)
         )

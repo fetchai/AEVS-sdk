@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 
@@ -105,6 +106,45 @@ class AEVSClient:
             self._async_client_loop = asyncio.get_running_loop()
         response = await client.post(
             "/receipts", content=payload_bytes, headers=headers
+        )
+        if response.is_error:
+            _log_backend_error(response)
+            response.raise_for_status()
+        return response
+
+    def _build_batch_body(self, payloads: list[bytes]) -> bytes:
+        receipt_strings = [p.decode("utf-8") for p in payloads]
+        return json.dumps({"receipts": receipt_strings}).encode("utf-8")
+
+    @property
+    def _batch_timeout(self) -> float:
+        return max(self._config.signing_timeout_ms / 1000.0, 30.0)
+
+    def send_receipts_batch(self, payloads: list[bytes]) -> httpx.Response:
+        """Sign and POST a batch of receipts. Raises on failure."""
+        body = self._build_batch_body(payloads)
+        headers = sign_request(self._config, body, signing_key=self._signing_key)
+        headers["Content-Type"] = "application/json"
+        response = self._client.post(
+            "/receipts/batch", content=body, headers=headers,
+            timeout=self._batch_timeout,
+        )
+        if response.is_error:
+            _log_backend_error(response)
+            response.raise_for_status()
+        return response
+
+    async def send_receipts_batch_async(self, payloads: list[bytes]) -> httpx.Response:
+        """Async version of send_receipts_batch."""
+        body = self._build_batch_body(payloads)
+        headers = sign_request(self._config, body, signing_key=self._signing_key)
+        headers["Content-Type"] = "application/json"
+        client = self.async_client
+        if self._async_client_loop is None:
+            self._async_client_loop = asyncio.get_running_loop()
+        response = await client.post(
+            "/receipts/batch", content=body, headers=headers,
+            timeout=self._batch_timeout,
         )
         if response.is_error:
             _log_backend_error(response)

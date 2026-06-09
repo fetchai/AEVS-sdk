@@ -382,7 +382,9 @@ def enable(*, frameworks: list[str] | None = None) -> None:
         _warn_dual_mcp_langchain(new_adapters)
 
         new_drainer = BufferDrainer(
-            new_buffer, new_client, interval_ms=config.drain_interval_ms
+            new_buffer, new_client,
+            interval_ms=config.drain_interval_ms,
+            max_batch_size=config.max_batch_size,
         )
 
         # Publish to globals only after full success

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="AEVS SDK" width="200">
+  <img src="https://raw.githubusercontent.com/fetchai/AEVS-sdk/main/assets/logo.svg" alt="AEVS SDK" width="200">
 </p>
 
 <h1 align="center">AEVS SDK</h1>
@@ -12,7 +12,6 @@
   <a href="https://pypi.org/project/aevs/"><img src="https://img.shields.io/pypi/v/aevs?color=blue" alt="PyPI"></a>
   <a href="https://pypi.org/project/aevs/"><img src="https://img.shields.io/pypi/pyversions/aevs" alt="Python"></a>
   <a href="https://github.com/fetchai/AEVS-sdk/blob/main/LICENSE"><img src="https://img.shields.io/github/license/fetchai/AEVS-sdk" alt="License"></a>
-  <a href="https://github.com/fetchai/AEVS-sdk/actions"><img src="https://img.shields.io/github/actions/workflow/status/fetchai/AEVS-sdk/ci.yml?branch=main&label=CI" alt="CI"></a>
 </p>
 
 <p align="center">
