@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-aevs = {extras = ["langchain"], version = "^0.2.1"}
+aevs = {extras = ["langchain"], path = "..", develop = true}
 python-dotenv = "^1.2.2"
 langchain = "^1.2.18"
 langchain-openai = "^1.2.1"
