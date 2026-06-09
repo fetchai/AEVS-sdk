@@ -6,11 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-09
+
 ### Added
 - **Batch receipt sending** — the background drainer now sends buffered receipts in batches (up to `max_batch_size`, default 50) via `POST /v1/receipts/batch` instead of one-by-one. Reduces HTTP round-trips and improves throughput for high-volume agents. Configurable via `aevs.configure(max_batch_size=...)`. The SDK auto-detects backend support: if the batch endpoint returns 404/405 the drainer permanently falls back to single-receipt sending for the rest of the session.
 - **ECDSA v2 signing** — new `aevs_sk2_` API keys use ECDSA P-256 / SHA-256 asymmetric signatures for both receipt payload signing and HTTP request authentication. The private key stays on the SDK host; the backend stores only the SPKI public key. Existing HMAC (`aevs_sk_`) keys continue to work; the SDK auto-detects the key type.
 - **Invocation ID tracking** — each `graph.invoke()` / `.ainvoke()` / `.stream()` / `.astream()` call on a LangGraph compiled graph automatically gets a unique `invocation_id` (UUID v4). All tool calls within that graph execution share the same ID in their receipts, regardless of how many steps they span. Subgraphs inherit the parent's ID. Direct tool calls outside a graph get `None`. Falls back to LangSmith `trace_id` when available.
 - **`proof_only` payload hashes** — `proof_only` receipts now include `input_hash` and `output_hash` fields containing SHA-256 hashes of the actual pre-redaction payloads. Verifiers can confirm distinct inputs/outputs without accessing the raw data.
+
+### Documentation
+- Added comprehensive documentation covering getting started, core concepts, configuration, LangChain/MCP integration guides, receipt verification, security model, API reference, and troubleshooting.
+- README redesigned with logo, badges, and full GitHub links for PyPI rendering.
+- Examples updated with local `path = ".."` development dependency.
 
 ## [0.2.1] - 2026-05-15
 
@@ -66,7 +73,8 @@ Initial public release.
 - Default `base_url` is HTTPS (`https://api.aevs.fetch.ai/v1`); the SDK warns when a non-loopback `http://` URL is configured.
 - HTTP error response bodies are truncated in WARNING logs; the full slice is kept at DEBUG only.
 
-[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/fetchai/AEVS-sdk/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/fetchai/AEVS-sdk/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fetchai/AEVS-sdk/releases/tag/v0.1.0
