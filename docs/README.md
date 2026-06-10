@@ -21,10 +21,11 @@ AEVS intercepts tool calls from your AI agent, builds tamper-evident receipts (H
 - **[Getting Started](01-getting-started.md)** — install the SDK, get credentials, and capture your first receipt in under 5 minutes
 - **[Core Concepts](02-core-concepts.md)** — understand receipts, hash chains, sessions, and invocation tracking
 
-### Set up your framework (pick one or both)
+### Set up your framework
 
 - **[LangChain & LangGraph](04-langchain-integration.md)** — if you use LangChain tools or LangGraph agents
 - **[MCP](05-mcp-integration.md)** — if you use Model Context Protocol tools
+- **[CrewAI](10-crewai-integration.md)** — if you use CrewAI agents and tools
 
 ### Go deeper
 
@@ -40,7 +41,7 @@ AEVS intercepts tool calls from your AI agent, builds tamper-evident receipts (H
 ## How it works (at a glance)
 
 ```
-Your Agent (LangChain / MCP)
+Your Agent (LangChain / MCP / CrewAI)
   │
   ▼  tool call intercepted automatically
 ReceiptBuilder  ──▶  HMAC sign + hash chain
@@ -84,6 +85,7 @@ aevs.disable()
 |-----------|----------------|-------------|
 | LangChain / LangGraph | `pip install aevs[langchain]` | `langchain-core >= 0.2` |
 | MCP (Model Context Protocol) | `pip install aevs[mcp]` | `mcp >= 1.20` |
+| CrewAI | `pip install aevs[crewai]` | `crewai >= 1.0` |
 
 ## Get your credentials
 

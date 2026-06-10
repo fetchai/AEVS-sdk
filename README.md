@@ -36,12 +36,14 @@ With framework extras:
 ```bash
 pip install aevs[langchain]   # LangChain / LangGraph
 pip install aevs[mcp]         # Model Context Protocol
+pip install aevs[crewai]      # CrewAI
 ```
 
 | Framework | Extra | Min version |
 |-----------|-------|-------------|
 | LangChain / LangGraph | `aevs[langchain]` | `langchain-core >= 0.2` |
 | MCP | `aevs[mcp]` | `mcp >= 1.20` |
+| CrewAI | `aevs[crewai]` | `crewai >= 1.0` |
 
 ## Quick Start
 
@@ -75,7 +77,7 @@ Credentials can also be set via `AEVS_API_KEY` / `AEVS_AGENT_ID` environment var
 ## How It Works
 
 ```
-Agent (LangChain / MCP)
+Agent (LangChain / MCP / CrewAI)
   │
   ▼  tool call intercepted
 ReceiptBuilder  ──▶  HMAC sign + hash chain
@@ -141,6 +143,7 @@ See [`examples/README.md`](https://github.com/fetchai/AEVS-sdk/blob/main/example
 | [Configuration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/03-configuration.md) | All configuration options with defaults |
 | [LangChain Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/04-langchain-integration.md) | LangChain / LangGraph guide |
 | [MCP Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/05-mcp-integration.md) | Model Context Protocol guide |
+| [CrewAI Integration](https://github.com/fetchai/AEVS-sdk/blob/main/docs/10-crewai-integration.md) | CrewAI guide |
 | [Receipt Verification](https://github.com/fetchai/AEVS-sdk/blob/main/docs/06-receipt-verification.md) | Visibility modes and verification |
 | [Security & Privacy](https://github.com/fetchai/AEVS-sdk/blob/main/docs/07-security-and-privacy.md) | Threat model and data handling |
 | [API Reference](https://github.com/fetchai/AEVS-sdk/blob/main/docs/08-api-reference.md) | Complete function reference |
