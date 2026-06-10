@@ -55,6 +55,7 @@ _consecutive_store_failures: int = 0
 _ADAPTER_REGISTRY: dict[str, tuple[str, str]] = {
     "langchain": ("aevs.adapters.langchain", "LangChainAdapter"),
     "mcp": ("aevs.adapters.mcp", "MCPAdapter"),
+    "crewai": ("aevs.adapters.crewai", "CrewAIAdapter"),
 }
 
 
