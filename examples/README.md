@@ -1,6 +1,6 @@
 # AEVS SDK examples
 
-Three runnable scripts that walk you through the full AEVS flow at three
+Four runnable scripts that walk you through the full AEVS flow at rising
 levels of realism. Each one is self-contained — pick the one that matches
 what you're trying to learn.
 
@@ -9,6 +9,7 @@ what you're trying to learn.
 | 1 | [`01_local_quickstart.py`](01_local_quickstart.py) | The minimal SDK loop — configure → enable → invoke → see what AEVS captured (and shipped a signed receipt for). No LLM. | `AEVS_API_KEY`, `AEVS_AGENT_ID` (get them at [aevs.fetch.ai](https://aevs.fetch.ai)) |
 | 2 | [`02_openai_agent.py`](02_openai_agent.py) | A real LangChain agent with OpenAI picks tools to answer a multi-part query; AEVS records every tool call without changes to the agent or tools. | `OPENAI_API_KEY`, `AEVS_API_KEY`, `AEVS_AGENT_ID` |
 | 3 | [`03_asi_agent.py`](03_asi_agent.py) | Same agent, swapped to Fetch.ai's ASI:One model via its OpenAI-compatible API — the only diff is three lines in the `ChatOpenAI` constructor. Demonstrates that AEVS is provider-agnostic. | `ASI_API_KEY` (from [asi1.ai](https://asi1.ai)), `AEVS_API_KEY`, `AEVS_AGENT_ID` |
+| 4 | [`04_crewai_agent.py`](04_crewai_agent.py) | A CrewAI support agent takes a *consequential* action — issuing a refund — and AEVS turns that tool call into a signed, verifiable receipt. Shows **why** an audit trail matters when agents can move money. | `ASI_API_KEY` (from [asi1.ai](https://asi1.ai)), `AEVS_API_KEY`, `AEVS_AGENT_ID` |
 
 ## Recommended path
 
@@ -21,6 +22,11 @@ what you're trying to learn.
 4. Run **`03_asi_agent.py`** with an `ASI_API_KEY` instead. Diff it
    against `02_openai_agent.py` — exactly four lines change. The audit
    layer doesn't.
+5. Run **`04_crewai_agent.py`** to see the same audit layer on a
+   *different framework* (CrewAI) and a *higher-stakes* action: the
+   agent issues a refund, and you get a receipt you could hand to
+   finance. Note `aevs.enable(frameworks=["crewai"])` is the only AEVS
+   line that differs from the LangChain examples.
 
 ## Setup
 
@@ -54,7 +60,7 @@ poetry run python 03_asi_agent.py
 <summary>Using pip instead of Poetry</summary>
 
 ```bash
-pip install 'aevs[langchain]' python-dotenv langchain langchain-openai
+pip install 'aevs[langchain,crewai]' python-dotenv langchain langchain-openai crewai
 ```
 
 Then run from the repo root:
@@ -63,6 +69,7 @@ Then run from the repo root:
 python examples/01_local_quickstart.py
 python examples/02_openai_agent.py
 python examples/03_asi_agent.py
+python examples/04_crewai_agent.py
 ```
 
 </details>

@@ -7,10 +7,14 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-aevs = {extras = ["langchain"], path = "..", develop = true}
+aevs = {extras = ["langchain", "crewai"], path = "..", develop = true}
 python-dotenv = "^1.2.2"
 langchain = "^1.2.18"
 langchain-openai = "^1.2.1"
+crewai = {version = "^1.0.0", python = ">=3.10,<3.14"}
+# crewai -> chromadb pulls in onnxruntime; 1.24+ dropped Python 3.10 wheels,
+# so cap it to the last release that still ships a cp310 wheel.
+onnxruntime = {version = ">=1.14.1,<1.24", python = ">=3.10,<3.14"}
 
 
 [build-system]
