@@ -56,9 +56,9 @@ langchain-core = ">=0.2"
 langgraph = ">=1.2"
 mcp = ">=1.20"
 crewai = {version = ">=1.0", python = ">=3.10,<3.14"}
-# crewai -> chromadb pulls in onnxruntime; 1.24+ dropped Python 3.10 wheels,
-# so cap it to the last release that still ships a cp310 wheel.
-onnxruntime = {version = ">=1.14.1,<1.24", python = ">=3.10,<3.14"}
+# crewai -> chromadb pulls in onnxruntime; 1.24+ dropped the Python 3.10
+# wheel (cp310), so cap it below 1.24 only on 3.10. On 3.11+ it floats.
+onnxruntime = {version = "<1.24", python = "<3.11"}
 
 [build-system]
 requires = ["poetry-core"]

@@ -2009,13 +2009,13 @@ websockets = ">=14,<16"
 
 [[package]]
 name = "langsmith"
-version = "0.8.11"
+version = "0.8.12"
 description = "Client library to connect to the LangSmith Observability and Evaluation Platform."
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "langsmith-0.8.11-py3-none-any.whl", hash = "sha256:08aa5e84b00703ecc11dbeafda78d84b92da4e8c6114e0be9b59df9e71afc59b"},
-    {file = "langsmith-0.8.11.tar.gz", hash = "sha256:d9b3496f8f7ca63f4f2d1dfd368afd6c527923fff2ce4026c82ce85f37db3965"},
+    {file = "langsmith-0.8.12-py3-none-any.whl", hash = "sha256:f4f1038acf189ea05070c77839b051feddd3e57f0dcf36201a9f94bdd42c5d15"},
+    {file = "langsmith-0.8.12.tar.gz", hash = "sha256:3b5989ae9fcbdcd31cf4109254027c0d6ca11085f5a0052e8ea79bd9e1eec052"},
 ]
 
 [package.dependencies]
@@ -5797,4 +5797,4 @@ mcp = ["mcp"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "4f84cc4de6fde2cda47c5fcaa041ad1a46ba1bd67522860b6952490e37428068"
+content-hash = "0e9b1ff1fcb3afc509eb62fe594ff2305685107d8dd5377fc87b177ef39dc372"
