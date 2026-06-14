@@ -4,7 +4,7 @@ import hashlib
 import threading
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from cryptography.hazmat.primitives.asymmetric import ec
 
@@ -159,7 +159,12 @@ class ReceiptBuilder:
             )
             self._prev_hash = compute_receipt_hash(full_bytes)
 
-            return receipt  # type: ignore[return-value]
+            # ``receipt`` is built as a ``dict[str, Any]`` so that the
+            # conditional ``proof_only`` keys and the post-hoc ``payload_hmac``
+            # can be added incrementally; ``cast`` asserts the finished builder
+            # output conforms to the ``ReceiptPayload`` schema (a typed boundary,
+            # not a blanket error-suppression).
+            return cast(ReceiptPayload, receipt)
 
     @property
     def seq(self) -> int:

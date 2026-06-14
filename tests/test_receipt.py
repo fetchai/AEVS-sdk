@@ -4,6 +4,7 @@ from aevs._version import __version__
 from aevs.config import configure, get_config
 from aevs.core.receipt import ReceiptBuilder
 from aevs.core.serializer import canonical_json
+from aevs.core.types import ReceiptPayload
 from aevs.crypto.chain import compute_chain_anchor, compute_receipt_hash
 from aevs.crypto.hkdf import derive_key
 from aevs.crypto.hmac_auth import verify_hmac
@@ -213,3 +214,40 @@ class TestReceiptBuilder:
         assert r1["seq"] == r2["seq"]
         assert r1["tool_name"] == r2["tool_name"]
         assert r1["reference_id"] != r2["reference_id"]
+
+
+class TestReceiptPayloadSchema:
+    """The ``ReceiptPayload`` TypedDict must declare every key the builder can emit.
+
+    Regression coverage for the gap where ``input_hash`` / ``output_hash`` — added
+    to ``proof_only`` receipts at ``ReceiptBuilder.build`` — were absent from the
+    TypedDict, so the runtime keys were invisible to type checkers (previously
+    masked by a ``# type: ignore[return-value]`` on the return statement).
+    """
+
+    def test_hash_fields_are_optional_schema_keys(self):
+        assert "input_hash" in ReceiptPayload.__optional_keys__
+        assert "output_hash" in ReceiptPayload.__optional_keys__
+
+    def test_hash_fields_are_not_required(self):
+        # They must stay optional: non-proof_only receipts never carry them.
+        assert "input_hash" not in ReceiptPayload.__required_keys__
+        assert "output_hash" not in ReceiptPayload.__required_keys__
+
+    def test_builder_keys_are_declared_in_schema(self):
+        """Every key a proof_only receipt emits is part of the declared schema."""
+        builder = _make_builder(receipt_visibility="proof_only")
+        receipt = _build_one(builder)
+        declared = ReceiptPayload.__required_keys__ | ReceiptPayload.__optional_keys__
+        assert set(receipt) <= declared, set(receipt) - declared
+
+    def test_proof_only_emits_the_optional_keys(self):
+        builder = _make_builder(receipt_visibility="proof_only")
+        receipt = _build_one(builder)
+        assert ReceiptPayload.__optional_keys__ <= set(receipt)
+
+    def test_default_visibility_omits_optional_keys(self):
+        builder = _make_builder()  # default: private
+        receipt = _build_one(builder)
+        assert "input_hash" not in receipt
+        assert "output_hash" not in receipt
