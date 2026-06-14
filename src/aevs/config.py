@@ -238,13 +238,19 @@ def configure(
     drain_interval_ms: int = 5_000,
     max_reference_entries: int = 1_000,
     max_batch_size: int = 50,
-    receipt_visibility: str = "private",
+    receipt_visibility: str | None = None,
 ) -> None:
     """Set AEVS configuration. Must be called before enable().
 
     *api_key* and *agent_id* fall back to ``AEVS_API_KEY`` /
     ``AEVS_AGENT_ID`` env vars.  If either is still missing the SDK
     logs a warning and enters no-op mode (never crashes the host).
+
+    *receipt_visibility* falls back to the ``AEVS_RECEIPT_VISIBILITY``
+    env var when omitted, and to ``"private"`` when neither is set. An
+    explicit argument always takes precedence over the env var. An
+    invalid value (from either source) logs a warning and falls back to
+    ``"private"`` rather than raising.
     """
     global _global_config
 
