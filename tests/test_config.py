@@ -209,6 +209,63 @@ class TestMissingCredentials:
         assert not aevs._api._enabled
 
 
+class TestReceiptVisibility:
+    """receipt_visibility precedence: explicit param > AEVS_RECEIPT_VISIBILITY env > default.
+
+    Regression coverage for the bug where the ``configure()`` parameter defaulted
+    to the truthy string ``"private"``, so ``receipt_visibility or os.environ.get(...)``
+    short-circuited and the documented ``AEVS_RECEIPT_VISIBILITY`` fallback was never read.
+    """
+
+    def test_defaults_to_private(self, monkeypatch):
+        monkeypatch.delenv("AEVS_RECEIPT_VISIBILITY", raising=False)
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
+        cfg = get_config()
+        assert cfg.receipt_visibility == "private"
+
+    def test_explicit_param_is_honored(self, monkeypatch):
+        monkeypatch.delenv("AEVS_RECEIPT_VISIBILITY", raising=False)
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            receipt_visibility="public",
+        )
+        cfg = get_config()
+        assert cfg.receipt_visibility == "public"
+
+    def test_env_var_fallback_when_param_omitted(self, monkeypatch):
+        """The documented AEVS_RECEIPT_VISIBILITY fallback must be honored."""
+        monkeypatch.setenv("AEVS_RECEIPT_VISIBILITY", "proof_only")
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
+        cfg = get_config()
+        assert cfg.receipt_visibility == "proof_only"
+
+    def test_explicit_param_takes_precedence_over_env(self, monkeypatch):
+        monkeypatch.setenv("AEVS_RECEIPT_VISIBILITY", "public")
+        configure(
+            api_key=TEST_API_KEY,
+            agent_id=TEST_AGENT_ID,
+            receipt_visibility="proof_only",
+        )
+        cfg = get_config()
+        assert cfg.receipt_visibility == "proof_only"
+
+    def test_env_var_is_case_insensitive(self, monkeypatch):
+        monkeypatch.setenv("AEVS_RECEIPT_VISIBILITY", "PROOF_ONLY")
+        configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
+        cfg = get_config()
+        assert cfg.receipt_visibility == "proof_only"
+
+    def test_invalid_env_var_warns_and_falls_back(self, monkeypatch, caplog):
+        """An invalid env value must not crash host code — warn and fall back to default."""
+        monkeypatch.setenv("AEVS_RECEIPT_VISIBILITY", "bogus")
+        with caplog.at_level("WARNING", logger="aevs"):
+            configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
+        cfg = get_config()
+        assert cfg.receipt_visibility == "private"
+        assert "receipt_visibility" in caplog.text
+
+
 class TestAgentIdValidation:
     def test_valid_v4_uuid(self):
         configure(api_key=TEST_API_KEY, agent_id=TEST_AGENT_ID)
